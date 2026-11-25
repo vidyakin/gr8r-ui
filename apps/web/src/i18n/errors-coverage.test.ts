@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { en } from './en';
+import { es } from './es';
 import { ru } from './ru';
 
 const ROOT = join(import.meta.dir, '../../../..');
@@ -36,10 +37,10 @@ describe('коды ошибок сервера и errors.*', () => {
     expect(codes.length).toBeGreaterThan(100);
   });
 
-  test('у каждого кода есть английский и русский текст', () => {
-    const missingEn = codes.filter(c => !(c in en.errors));
-    const missingRu = codes.filter(c => !(c in ru.errors));
-    expect(missingEn, `нет в en/errors.ts: ${missingEn.join(', ')}`).toEqual([]);
-    expect(missingRu, `нет в ru/errors.ts: ${missingRu.join(', ')}`).toEqual([]);
+  test('у каждого кода есть английский, русский и испанский текст', () => {
+    for (const [locale, dictionary] of Object.entries({ en, ru, es })) {
+      const missing = codes.filter(code => !(code in dictionary.errors));
+      expect(missing, `нет в ${locale}/errors.ts: ${missing.join(', ')}`).toEqual([]);
+    }
   });
 });

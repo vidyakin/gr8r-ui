@@ -21,9 +21,23 @@ export const users = pgTable(
     isService: boolean('is_service').notNull().default(false),
     createdAt: createdAt(),
     lastLoginAt: ts('last_login_at'),
+    totpSecretCiphertext: text('totp_secret_ciphertext'),
+    totpEnabled: boolean('totp_enabled').notNull().default(false),
+    totpVerifiedAt: ts('totp_verified_at'),
+    totpLastStep: integer('totp_last_step'),
+    recoveryCodesHashes: text('recovery_codes_hashes').array().notNull().default(sql`'{}'::text[]`),
+    totpChallengeHash: text('totp_challenge_hash'),
+    totpChallengeExpiresAt: ts('totp_challenge_expires_at'),
   },
-  t => [uniqueIndex('users_email_uq').on(sql`lower(${t.email})`), check('users_locale_chk', sql`${t.locale} in ('en','ru')`)],
+  t => [
+    uniqueIndex('users_email_uq').on(sql`lower(${t.email})`),
+    check('users_locale_chk', sql`${t.locale} in ('en','ru')`),
+    uniqueIndex('users_totp_challenge_idx').on(t.totpChallengeHash).where(sql`${t.totpChallengeHash} is not null`),
+  ],
 );
+
+const loginMethods = ['password', 'totp', 'recovery'] as const;
+const loginStatuses = ['ok', 'failed_password', 'failed_totp', 'blocked_ip'] as const;
 
 /** Сессии: id — sha256 токена из cookie (сам токен в БД не хранится) */
 export const sessions = pgTable(
@@ -37,8 +51,13 @@ export const sessions = pgTable(
     expiresAt: ts('expires_at').notNull(),
     ip: text('ip'),
     userAgent: text('user_agent'),
+    loginMethod: text('login_method', { enum: loginMethods }).notNull().default('password'),
   },
-  t => [index('sessions_user_idx').on(t.userId), index('sessions_expires_idx').on(t.expiresAt)],
+  t => [
+    index('sessions_user_idx').on(t.userId),
+    index('sessions_expires_idx').on(t.expiresAt),
+    check('sessions_login_method_chk', sql`${t.loginMethod} in ('password','totp','recovery')`),
+  ],
 );
 
 /** Счётчики для rate-limit (вход, регистрация): key = «действие:email:ip» */
@@ -65,6 +84,8 @@ export const workspaces = pgTable(
     color: text('color').notNull().default('#1D1C1A'),
     brand: boolean('brand').notNull().default(false),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    require2fa: boolean('require_2fa').notNull().default(false),
+    ipAllowlist: text('ip_allowlist').array().notNull().default(sql`'{}'::text[]`),
     /** Часовой пояс арендатора (IANA): в нём считаются день и период биллинга и расписания автоматизаций */
     timezone: text('timezone').notNull().default('Europe/Moscow'),
     /** Дата запрета редактирования: документы с датой не позже неё нельзя провести, снять с проведения или исправить */
@@ -109,6 +130,27 @@ export const workspaces = pgTable(
     check('workspaces_industry_options_chk', sql`${t.industryOptions} <@ ARRAY['food']::text[]`),
     check('workspaces_object_overhead_chk', sql`${t.objectOverheadPct} >= 0 and ${t.objectOverheadPct} <= 100`),
     check('workspaces_supplier_rating_d_policy_chk', sql`${t.supplierRatingDPolicy} in ('none','warn','block')`),
+  ],
+);
+
+export const loginEvents = pgTable(
+  'login_events',
+  {
+    id: pk(),
+    workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    email: text('email').notNull(),
+    ip: text('ip').notNull(),
+    userAgent: text('user_agent'),
+    method: text('method', { enum: loginMethods }).notNull(),
+    viaApiToken: boolean('via_api_token').notNull().default(false),
+    status: text('status', { enum: loginStatuses }).notNull(),
+    createdAt: createdAt(),
+  },
+  t => [
+    index('login_events_ws_created_idx').on(t.workspaceId, t.createdAt.desc(), t.id.desc()),
+    check('login_events_method_chk', sql`${t.method} in ('password','totp','recovery')`),
+    check('login_events_status_chk', sql`${t.status} in ('ok','failed_password','failed_totp','blocked_ip')`),
   ],
 );
 

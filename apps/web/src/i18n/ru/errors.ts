@@ -2,6 +2,14 @@ import type { Widen } from '../types';
 import type { errors as E } from '../en/errors';
 
 export const errors: Widen<typeof E> = {
+  ip_self_lockout: "Добавьте свой текущий IP-адрес в белый список перед сохранением.",
+  ip_blocked: "С этого IP-адреса нельзя открыть воркспейс.",
+  totp_required: "Подключите двухфакторную аутентификацию, чтобы открыть воркспейс.",
+  invalid_totp: "Код неверен, уже использован или истёк.",
+  invalid_login_challenge: "Время подтверждения входа истекло. Войдите заново.",
+  totp_already_enabled: "Двухфакторная аутентификация уже включена.",
+  totp_setup_required: "Сначала начните настройку двухфакторной аутентификации.",
+  invalid_ip_range: "«{entry}» — некорректный IP-адрес или диапазон CIDR.",
   invalid_enterprise_data: 'Выберите корректный XML-файл EnterpriseData 1.15 или 1.17.',
   ic_unresolved_balances: 'Проверьте дату и выбранные разделы остатков. Устраните проблемы в несопоставленных строках.',
   ic_opening_exists: 'Для этой организации или склада уже есть документ ввода остатков.',

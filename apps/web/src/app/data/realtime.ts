@@ -16,9 +16,10 @@ interface EventEnvelope {
   actorId: string | null;
 }
 
-export function useRealtime(ws: string, engine: Engine) {
+export function useRealtime(ws: string, engine: Engine, enabled = true) {
   const qc = useQueryClient();
   React.useEffect(() => {
+    if (!enabled) return;
     let closed = false;
     let sock: WebSocket | null = null;
     let retry = 0;
@@ -36,6 +37,10 @@ export function useRealtime(ws: string, engine: Engine) {
       if (seen.size > 2000) seen.delete(seen.values().next().value!);
       if (e.id > since) since = e.id;
       engine.refresh(collectionsFor(e.entity));
+      if (e.entity === 'workspace_security') {
+        engine.refresh(['members']);
+        batch.add(['ws', ws, 'security']);
+      }
       // Конструктор сущностей: метаданные и записи пользовательских сущностей живут в отдельных запросах
       if (e.entity === 'entity' || e.entity === 'field') batch.add(['ws', ws, 'meta']);
       if (e.entity === 'field' || e.entity === 'position' || e.type.startsWith('member.')) {
@@ -177,5 +182,5 @@ export function useRealtime(ws: string, engine: Engine) {
       clearInterval(pingTimer);
       sock?.close();
     };
-  }, [ws, engine, qc]);
+  }, [ws, engine, qc, enabled]);
 }

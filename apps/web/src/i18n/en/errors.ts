@@ -1,6 +1,14 @@
 /* Ошибки API по коду (error.code). Параметры берутся из error.details. На английском приоритет у текста сервера —
    он точнее; ключ здесь нужен, чтобы перевести код на другие языки (см. errorMessage в data/api.ts) */
 export const errors = {
+  ip_self_lockout: "Include your current IP address before saving the allowlist.",
+  ip_blocked: "This IP address is not allowed in this workspace.",
+  totp_required: "Set up two-factor authentication to access this workspace.",
+  invalid_totp: "The authentication or recovery code is incorrect or has expired.",
+  invalid_login_challenge: "The sign-in challenge has expired. Sign in again.",
+  totp_already_enabled: "Two-factor authentication is already enabled.",
+  totp_setup_required: "Start two-factor setup first.",
+  invalid_ip_range: "“{entry}” is not a valid IP address or CIDR range.",
   invalid_enterprise_data: "Select a valid EnterpriseData 1.15 or 1.17 XML file.",
   ic_unresolved_balances: "Check the balance date, selected sections and unresolved rows.",
   ic_opening_exists: "An opening document already exists for this organization or warehouse.",

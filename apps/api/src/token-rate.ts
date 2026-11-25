@@ -4,6 +4,7 @@ import { AppError } from './errors';
 
 /** Заголовок внутреннего вызова API из инструментов MCP; секрет живёт только в памяти процесса */
 export const INTERNAL_HEADER = 'x-erp-internal';
+export const INTERNAL_IP_HEADER = 'x-erp-internal-ip';
 export const INTERNAL_SECRET = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
 
 const WINDOW_MS = 60_000;

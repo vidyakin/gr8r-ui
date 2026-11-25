@@ -4,10 +4,12 @@
    Данные живут на сервере: `data` собирается из кэша TanStack Query (коллекции `['ws', id, имя]`), а dispatch считает новое состояние
    этим же reducer'ом, пишет его в кэш (оптимистично) и отправляет разницу в API (см. engine.ts). */
 import * as React from 'react';
+import { Navigate, useLocation } from 'react-router';
 import { t } from '@/i18n';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { apiFor, errorMessage, ok } from './api';
+import { ApiError, apiFor, errorMessage, ok } from './api';
 import { engineFor, projOrderOf, reorderProjects, type Domain, type Op } from './engine';
+import { BlockedWorkspaceScreen } from '../settings/security';
 import { useRealtime } from './realtime';
 import { useSession, type SessionUser, type WorkspaceRef } from './session';
 import type { CollName, MemberRow, ProjectRow } from './specs';
@@ -770,10 +772,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
 function WorkspaceInner({ ws, user, children }: { ws: WorkspaceRef; user: SessionUser; children: React.ReactNode }) {
   const qc = useQueryClient();
+  const { pathname, search } = useLocation();
   const engine = engineFor(qc, ws.id);
   // Данные читаются из кэша напрямую (engine.read), а не из results — поэтому подписка на все изменения, а не на «использованные» поля
   const results = useQueries({ queries: WS_COLLS.map(name => ({ queryKey: engine.key(name), queryFn: () => engine.fetch(name), staleTime: Infinity, notifyOnChangeProps: 'all' as const })) });
-  useRealtime(ws.id, engine);
+  const policyError = results.find(r => r.error instanceof ApiError && ['totp_required', 'ip_blocked'].includes(r.error.code));
+  useRealtime(ws.id, engine, !policyError);
 
   const wsInfo = React.useMemo(() => wsInfoOf(ws), [ws.name, ws.slug, ws.color, ws.brand]); // eslint-disable-line react-hooks/exhaustive-deps
   const memo = React.useRef<{ inputs: unknown[]; out: WorkspaceData } | null>(null);
@@ -824,8 +828,14 @@ function WorkspaceInner({ ws, user, children }: { ws: WorkspaceRef; user: Sessio
   }, [dispatch, read, engine]);
   const value = React.useMemo(() => (data ? { data, dispatch } : null), [data, dispatch]);
 
+  const retry = () => results.forEach(r => void r.refetch());
+  if (policyError?.error instanceof ApiError) {
+    if (policyError.error.code === 'totp_required')
+      return <Navigate to="/setup-2fa" state={{ returnTo: pathname + search, workspaceId: ws.id }} replace />;
+    return <BlockedWorkspaceScreen onRetry={retry} />;
+  }
   const failed = results.find(r => r.isError);
-  if (failed) return <LoadingScreen error={errorMessage(failed.error)} onRetry={() => results.forEach(r => void r.refetch())} />;
+  if (failed) return <LoadingScreen error={errorMessage(failed.error)} onRetry={retry} />;
   if (!value) return <LoadingScreen />;
   if (!value.data.me) return <LoadingScreen error="You are not an active member of this workspace." />;
   return (

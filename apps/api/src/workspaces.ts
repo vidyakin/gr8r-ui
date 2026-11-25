@@ -1,15 +1,18 @@
 /* Воркспейсы: список моих, создание, настройки, приглашения (токен вместо почты — пока), смена роли, принятие приглашения. */
 import { zValidator } from '@hono/zod-validator';
 import { assertNotDemo } from './auth';
-import { and, count, desc, eq, gt, isNull, sql as dsql } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, gt, isNull, sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { assertLimit, invites, members, memberships, recordEvent, uuidv7, withContext, workspaces } from '@erp/db';
 import { inviteAcceptBody, inviteCreateBody, inviteLinkBody, memberParam, roleChangeBody, workspaceCreateBody, workspaceParam, workspaceUpdateBody, idParam } from '@erp/shared';
 import { AppError, forbidden, notFound } from './errors';
 import { ctxOf, validationHook } from './crud';
-import { requireRole, requireSession, sha256, tenant } from './middleware';
+import { requireRole, requireSession, sha256, tenant, workspaceAccessError } from './middleware';
 import { createWorkspace, listMyWorkspaces } from './workspaces-service';
 import type { AppEnv } from './types';
+
+// Workspace security policies are returned by the admin-only /security/settings endpoint.
+const { ipAllowlist, require2fa, ...workspaceView } = getTableColumns(workspaces);
 
 const INVITE_TTL_MS = 7 * 864e5;
 const newInviteToken = (wsId: string) => `${wsId}.${Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString('base64url')}`;
@@ -25,7 +28,7 @@ export const workspaceRoutes = new Hono<AppEnv>()
   .use('/:id/*', tenant('param'))
   .get('/:id', zValidator('param', workspaceParam, validationHook), async c => {
     const { db, workspaceId, role } = ctxOf(c);
-    const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+    const [ws] = await db.select(workspaceView).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
     if (!ws) throw notFound('Workspace');
     return c.json({ ...ws, role });
   })
@@ -40,7 +43,7 @@ export const workspaceRoutes = new Hono<AppEnv>()
       .update(workspaces)
       .set({ ...rest, ...(settings ? { settings } : {}), updatedAt: new Date() })
       .where(eq(workspaces.id, workspaceId))
-      .returning();
+      .returning(workspaceView);
     if (!ws) throw notFound('Workspace');
     await recordEvent(db, { workspaceId, type: 'workspace.updated', entity: 'workspace', recordId: workspaceId, actorId: memberId, payload: { changes: body } });
     return c.json(ws);
@@ -139,6 +142,8 @@ export const inviteRoutes = new Hono<AppEnv>().use('*', requireSession).post('/a
     if (inv.email.toLowerCase() !== user.email.toLowerCase()) throw forbidden('This invite was issued for a different email address');
     const [already] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.workspaceId, inv.workspaceId), eq(memberships.userId, user.id)));
     if (already) throw new AppError(409, 'already_member', 'You are already a member of this workspace');
+    const blocked = await workspaceAccessError(c, db, inv.workspaceId);
+    if (blocked) return { blocked } as const;
     await db.insert(memberships).values({ workspaceId: inv.workspaceId, userId: user.id, role: inv.role });
     const [profile] = await db.select({ id: members.id }).from(members).where(eq(dsql`lower(${members.email})`, inv.email.toLowerCase())).limit(1);
     let memberId = profile?.id;
@@ -146,8 +151,9 @@ export const inviteRoutes = new Hono<AppEnv>().use('*', requireSession).post('/a
     else [{ id: memberId }] = (await db.insert(members).values({ id: uuidv7(), workspaceId: inv.workspaceId, userId: user.id, email: user.email, name: user.name, role: inv.role }).returning({ id: members.id })) as [{ id: string }];
     await db.update(invites).set({ acceptedAt: new Date() }).where(eq(invites.id, inv.id));
     await recordEvent(db, { workspaceId: inv.workspaceId, type: 'member.joined', entity: 'member', recordId: memberId, actorId: memberId, payload: { role: inv.role } });
-    const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, inv.workspaceId));
-    return { ...ws!, role: inv.role, memberId: memberId! };
+    const [ws] = await db.select(workspaceView).from(workspaces).where(eq(workspaces.id, inv.workspaceId));
+    return { workspace: { ...ws!, role: inv.role, memberId: memberId! } } as const;
   });
-  return c.json(result);
+  if (result.blocked) throw result.blocked;
+  return c.json(result.workspace!);
 });

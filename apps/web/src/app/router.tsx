@@ -36,6 +36,7 @@ const SearchPage = lazyPage(() => import('./pages/SearchPage'), 'SearchPage');
 const ArchivePage = lazyPage(() => import('./pages/ArchivePage'), 'ArchivePage');
 const TeamPage = lazyPage(() => import('./pages/TeamPage'), 'TeamPage');
 const TeamsPage = lazyPage(() => import('./pages/TeamPage'), 'TeamsPage');
+const TotpEnrollmentPage = lazyPage(() => import('./settings/security'), 'TotpEnrollmentPage');
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPage');
 const UpgradePage = lazyPage(() => import('./licensing/UpgradePage'), 'UpgradePage');
 const ChangelogPage = lazyPage(() => import('./changelog/ChangelogPage'), 'ChangelogPage');
@@ -368,6 +369,7 @@ export const router = createHashRouter([
   { path: '/p/price/:token', element: <React.Suspense fallback={null}><PublicPricePage /></React.Suspense> },
   // публичный гостевой чат по ссылке: без входа
   { path: '/c/:token', element: <React.Suspense fallback={null}><PublicChatPage /></React.Suspense> },
+  { path: '/setup-2fa', element: <React.Suspense fallback={null}><TotpEnrollmentPage /></React.Suspense> },
   { path: '/signin', element: <SignInPage /> },
   { path: '/signup', element: <SignUpPage /> },
   { path: '/forgot', element: <ForgotPage /> },

@@ -3,7 +3,7 @@
    под app_user с RLS, модуль лицензии, разделы токена, должности, роль, read_only/can_post и maskCost обычного запроса.
    Запись идёт методами POST/PATCH с JSON-телом (docs/architecture/mcp.md, «Запись»). */
 import type { Hono } from 'hono';
-import { INTERNAL_HEADER, INTERNAL_SECRET } from '../token-rate';
+import { INTERNAL_HEADER, INTERNAL_IP_HEADER, INTERNAL_SECRET } from '../token-rate';
 import type { AppEnv } from '../types';
 
 export type CallResult = { ok: true; data: unknown } | { ok: false; code: string; message: string; status: number };
@@ -20,6 +20,8 @@ export interface CallOptions {
   body?: unknown;
   authorization: string;
   workspaceId: string;
+  ip: string;
+  userAgent?: string;
 }
 
 const withQuery = (path: string, query: Query = {}): string => {
@@ -29,8 +31,9 @@ const withQuery = (path: string, query: Query = {}): string => {
 
 /** Вызов в собственное приложение под исходными заголовками токена. Относительный путь может включать query. */
 export async function callApi(app: Hono<AppEnv>, path: string, options: CallOptions): Promise<CallResult> {
-  const { method = 'GET', query, body, authorization, workspaceId } = options;
-  const headers: Record<string, string> = { authorization, 'x-workspace-id': workspaceId, [INTERNAL_HEADER]: INTERNAL_SECRET };
+  const { method = 'GET', query, body, authorization, workspaceId, ip, userAgent } = options;
+  const headers: Record<string, string> = { authorization, 'x-workspace-id': workspaceId, [INTERNAL_HEADER]: INTERNAL_SECRET, [INTERNAL_IP_HEADER]: ip };
+  if (userAgent) headers['user-agent'] = userAgent;
   if (method !== 'GET') headers['content-type'] = 'application/json';
   let res: Response;
   try {

@@ -3,6 +3,14 @@ import type { Widen } from '../types';
 import type { errors as E } from '../en/errors';
 
 export const errors: Widen<typeof E> = {
+  ip_self_lockout: "Incluye tu dirección IP actual antes de guardar la lista.",
+  ip_blocked: "Esta dirección IP no tiene acceso al espacio de trabajo.",
+  totp_required: "Activa la autenticación de dos factores para acceder a este espacio de trabajo.",
+  invalid_totp: "El código es incorrecto, ya se usó o ha caducado.",
+  invalid_login_challenge: "El plazo para confirmar el acceso ha caducado. Vuelve a iniciar sesión.",
+  totp_already_enabled: "La autenticación de dos factores ya está activada.",
+  totp_setup_required: "Inicia primero la configuración de la autenticación de dos factores.",
+  invalid_ip_range: "«{entry}» no es una dirección IP ni un rango CIDR válido.",
   invalid_enterprise_data: 'Seleccione un archivo XML válido de EnterpriseData 1.15 o 1.17.',
   ic_unresolved_balances: 'Revise la fecha, las secciones de saldos seleccionadas y las filas sin resolver.',
   ic_opening_exists: 'Ya existe un documento de apertura para esta organización o almacén.',

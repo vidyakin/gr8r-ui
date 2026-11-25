@@ -2,9 +2,10 @@
    На каждый HTTP-запрос — новый сервер и транспорт; инструменты ходят во внутренний API с исходным Authorization. */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import { withContext } from '@erp/db';
 import { Hono } from 'hono';
 import { AppError } from '../errors';
-import { requireSession } from '../middleware';
+import { requireSession, workspaceAccessError } from '../middleware';
 import type { AppEnv } from '../types';
 import { callApi, type Query, type WriteMethod } from './call';
 import { registerTools } from './tools';
@@ -25,10 +26,14 @@ export function mcpRoutes(getApp: () => Hono<AppEnv>) {
       if (!token) throw new AppError(401, 'token_required', 'MCP requires an access token (Authorization: Bearer)');
       const wsHeader = c.req.header('x-workspace-id');
       if (wsHeader && wsHeader.toLowerCase() !== token.workspaceId) throw new AppError(403, 'token_forbidden', 'The token does not belong to this workspace');
+      const blocked = await withContext(c.get('sql'), { userId: c.get('user').id, workspaceId: token.workspaceId, apiTokenId: token.id },
+        db => workspaceAccessError(c, db, token.workspaceId));
+      if (blocked) throw blocked;
       const authorization = c.req.header('authorization')!;
 
       const server = new McpServer({ name: 'erp', version: '1.0.0' }, { capabilities: { tools: {} } });
-      const base = { authorization, workspaceId: token.workspaceId };
+      const userAgent = c.req.header('user-agent');
+      const base = { authorization, workspaceId: token.workspaceId, ip: c.get('ip'), ...(userAgent && { userAgent }) };
       registerTools(server, {
         call: (path: string, query: Query = {}) => callApi(getApp(), path, { ...base, query }),
         send: (method: WriteMethod, path: string, body: unknown) => callApi(getApp(), path, { ...base, method, body }),

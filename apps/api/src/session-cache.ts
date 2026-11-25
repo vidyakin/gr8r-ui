@@ -12,7 +12,7 @@ import type { SessionUser } from './types';
 export const SESSION_REVOKED_CHANNEL = 'erp_session_revoked';
 
 /** Что сбросить: конкретные сессии (id — sha256 токена) или все сессии пользователя */
-export type SessionRevoke = { sessionIds: string[] } | { userId: string };
+export type SessionRevoke = { sessionIds: string[] } | { userId: string; closeSockets?: true };
 
 interface Entry {
   user: SessionUser;
@@ -59,11 +59,18 @@ export class SessionCache {
   }
 
   /** Сообщение канала от другого экземпляра API */
-  onNotify(payload: string) {
+  onNotify(payload: string): SessionRevoke | undefined {
     try {
       const r = JSON.parse(payload) as SessionRevoke;
-      if ('sessionIds' in r && Array.isArray(r.sessionIds)) this.revoke({ sessionIds: r.sessionIds.map(String) });
-      else if ('userId' in r && typeof r.userId === 'string') this.revoke({ userId: r.userId });
+      if ('sessionIds' in r && Array.isArray(r.sessionIds)) {
+        const revoke = { sessionIds: r.sessionIds.map(String) };
+        this.revoke(revoke);
+        return revoke;
+      }
+      if ('userId' in r && typeof r.userId === 'string') {
+        this.revoke(r);
+        return r;
+      }
     } catch (e) {
       console.error('[session-cache] bad notification payload', e);
     }

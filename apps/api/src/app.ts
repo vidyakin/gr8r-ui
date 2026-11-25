@@ -9,9 +9,11 @@ import { adminRoutes } from './admin';
 import { authRoutes } from './auth';
 import { loadConfig, numberingSqlOptions } from './env';
 import { AppError, dbUnavailable, forbidden, onError, onNotFound } from './errors';
-import { requireModule, requireSection, requireSession, requestLogger, tenant } from './middleware';
+import { requireModule, requireSection, requireSession, requestLogger, tenant, workspaceAccessError } from './middleware';
 import { MODULE_OF_PATH, SECTION_OF_API_PATH } from '@erp/shared';
 import { licenseRoutes } from './routes/license';
+import { securityRoutes } from './routes/security';
+import { INTERNAL_HEADER, INTERNAL_IP_HEADER, INTERNAL_SECRET } from './token-rate';
 import { objectRoutes } from './routes/objects';
 import { estimateRoutes, objectEstimateRoutes } from './routes/estimates';
 import { apiTokenRoutes } from './routes/api-tokens';
@@ -118,7 +120,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/crm', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/departments', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/ai-chats', '/secrets', '/mailboxes', '/emails', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/integrations', '/payroll', '/pricing', '/loyalty', '/doc-templates', '/license', '/fleet', '/trips', '/transport-orders', '/attachments', '/defect-reasons', '/objects', '/supplier-ratings', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast', '/api-tokens', '/webhooks', '/project-templates', '/approval-routes', '/approvals', '/approval-tasks', '/whiteboards', '/chats', '/weighings'];
+export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/crm', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/departments', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/ai-chats', '/secrets', '/mailboxes', '/emails', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/integrations', '/payroll', '/pricing', '/loyalty', '/doc-templates', '/license', '/fleet', '/trips', '/transport-orders', '/attachments', '/defect-reasons', '/objects', '/supplier-ratings', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast', '/api-tokens', '/security', '/webhooks', '/project-templates', '/approval-routes', '/approvals', '/approval-tasks', '/whiteboards', '/chats', '/weighings'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -273,6 +275,7 @@ function buildTenantApi() {
     .route('/sub-acts', objectSubActRoutes)
     .route('/estimates', estimateRoutes)
     .route('/api-tokens', apiTokenRoutes)
+    .route('/security', securityRoutes)
     .route('/webhooks', webhookRoutes)
     .route('/whiteboards', whiteboardRoutes)
     .route('/chats', chatRoutes)
@@ -299,11 +302,13 @@ export function createApp(deps: AppDeps) {
       c.set('numberingSql', numberingSql);
       let ip = 'unknown';
       try {
-        ip = (config.trustProxy ? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() : undefined) ?? getConnInfo(c).remote.address ?? 'unknown';
+        const forwarded = config.trustProxy ? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() : undefined;
+        const internal = c.req.header(INTERNAL_HEADER) === INTERNAL_SECRET ? c.req.header(INTERNAL_IP_HEADER) : undefined;
+        ip = internal || forwarded || getConnInfo(c).remote.address || 'unknown';
       } catch {
         /* вне Bun.serve (тесты через app.request) адреса нет */
       }
-      c.set('ip', ip);
+      c.set('ip', ip.length <= 64 ? ip : 'unknown');
       await next();
     })
     .use('*', requestLogger)
@@ -345,14 +350,15 @@ export function createApp(deps: AppDeps) {
         const origin = c.req.header('origin');
         if (origin && config.corsOrigins.length && !config.corsOrigins.includes(origin) && new URL(origin).host !== c.req.header('host')) throw forbidden('Origin is not allowed');
         const user = c.get('user');
-        const ok = await withContext(c.get('sql'), { userId: user.id }, async (db, tx) => {
+        const blocked = await withContext(c.get('sql'), { userId: user.id }, async (db, tx) => {
           const [ms] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.workspaceId, wsId), eq(memberships.userId, user.id))).limit(1);
-          if (!ms) return false;
+          if (!ms) throw forbidden('You are not a member of this workspace');
           await tx`select set_config('app.workspace_id', ${wsId}, true)`;
           const [me] = await db.select({ status: members.status }).from(members).where(and(eq(members.workspaceId, wsId), eq(members.userId, user.id))).limit(1);
-          return !!me && me.status !== 'deactivated';
+          if (!me || me.status === 'deactivated') throw forbidden('You are not an active member of this workspace');
+          return workspaceAccessError(c, db, wsId);
         });
-        if (!ok) throw forbidden('You are not a member of this workspace');
+        if (blocked) throw blocked;
         c.set('workspaceId', wsId);
         await next();
       }),
@@ -363,7 +369,7 @@ export function createApp(deps: AppDeps) {
         const sql = c.get('sql');
         return {
           onOpen: async (_evt, ws) => {
-            hub.join(wsId, ws.raw as never);
+            hub.join(wsId, ws.raw as never, { userId, sessionId: c.get('sessionId') });
             ws.send(JSON.stringify({ type: 'ready', workspaceId: wsId }));
             // Догоняем пропущенное: события после since (id — uuid v7). Клиент дедуплицирует по event.id
             if (since && isUuid(since)) {

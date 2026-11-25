@@ -56,7 +56,8 @@ interface SessionCtx {
   /** Активный воркспейс (из localStorage, если он ещё мой; иначе первый) */
   active: WorkspaceRef | null;
   switchWorkspace: (id: string) => void;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signInWithFactor: (challengeToken: string, code: string) => Promise<void>;
   signUp: (v: { email: string; password: string; name: string; workspaceName?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   /** Перечитать список моих воркспейсов (после создания/переименования/удаления) */
@@ -131,8 +132,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
       },
       signIn: async (email, password) => {
+        const result = await ok(apiFor().auth.login.$post({ json: { email, password } }));
+        if ('requires2fa' in result) return result.challengeToken;
         qc.removeQueries({ queryKey: ['ws'] });
-        set(await ok<SessionData>(apiFor().auth.signin.$post({ json: { email, password } })));
+        set(result as SessionData);
+        return null;
+      },
+      signInWithFactor: async (challengeToken, code) => {
+        const result = await ok<SessionData>(apiFor().auth.login['2fa'].$post({ json: { challengeToken, code } }));
+        qc.removeQueries({ queryKey: ['ws'] });
+        set(result);
       },
       signUp: async v => {
         qc.removeQueries({ queryKey: ['ws'] });

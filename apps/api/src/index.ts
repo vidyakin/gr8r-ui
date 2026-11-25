@@ -10,7 +10,10 @@ const sql = createSql(databaseUrl(), apiSqlOptions(config));
 const { app, hub, sessionCache, accessCache, numberingSql } = createApp({ sql, config });
 await hub.start();
 // Закрытые на других экземплярах API сессии сбрасываются и из кэша этого процесса
-const stopRevokeListener = await listenChannel(databaseUrl(), SESSION_REVOKED_CHANNEL, p => sessionCache.onNotify(p));
+const stopRevokeListener = await listenChannel(databaseUrl(), SESSION_REVOKED_CHANNEL, payload => {
+  const revoke = sessionCache.onNotify(payload);
+  if (revoke && ('sessionIds' in revoke || revoke.closeSockets)) hub.revokeSessions(revoke);
+});
 // Доступ к воркспейсу поменялся (триггеры миграции 0125): сбрасываем кэш членства, лицензии и разделов
 const stopAccessListener = await listenChannel(databaseUrl(), ACCESS_CHANGED_CHANNEL, ws => accessCache.invalidate(ws));
 

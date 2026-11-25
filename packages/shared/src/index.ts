@@ -69,3 +69,5 @@ export * from './enterprise-data';
 export * from './enterprise-data-parse';
 export * from './integrations-1c';
 export * from './integrations-1c-sync';
+export * from './security';
+export * from './schemas/security';

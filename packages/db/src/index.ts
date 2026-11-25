@@ -122,3 +122,4 @@ export { apply1cImport, preview1cImport, type IcImportPreview, type IcImportResu
 export * from './integrations-1c-reconcile';
 export * from './integrations-1c-sync';
 export { applyIcPackage } from './integrations-1c-sync-apply';
+export * from './login-security';
