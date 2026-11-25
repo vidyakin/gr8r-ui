@@ -9,7 +9,6 @@ import {
   cashBalances,
   cashFlowItems,
   cashFlowReport,
-  cashOrderData,
   cashRegisters,
   companies,
   createPayment,
@@ -22,6 +21,7 @@ import {
   organizations,
   paymentDetail,
   paymentStatuses,
+  renderDocumentHtml,
   settlementActData,
   settlementCard,
   updatePayment,
@@ -41,7 +41,6 @@ import {
   paymentFromDocument,
   paymentQuery,
   paymentUpdate,
-  renderCashOrder,
   renderSettlementAct,
   settlementQuery,
   settlementStatusQuery,
@@ -49,6 +48,7 @@ import {
 } from '@erp/shared';
 import { z } from 'zod';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
+import { assertDocumentPrintAccess } from '../field-access';
 import { AppError } from '../errors';
 import { hasRole, requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -161,14 +161,13 @@ export const paymentRoutes = new Hono<AppEnv>()
     return c.json(await paymentDetail(ctx.db, id));
   })
   // КО-1 / КО-2
-  .get('/:id/print/:form', zValidator('param', z.object({ id: uuid, form: z.enum(['ko1', 'ko2']) }), validationHook), async c => {
+  .get('/:id/print/:form', zValidator('param', z.object({ id: uuid, form: z.enum(['ko1', 'ko2', 'kz_pko', 'kz_rko']) }), validationHook), async c => {
     const ctx = ctxOf(c);
     const { id, form } = c.req.valid('param');
-    const d = await paymentDetail(ctx.db, id);
-    if ((form === 'ko1') !== (d.type === 'cash_receipt')) throw new AppError(422, 'form_not_available', 'This form is not available for the document type');
+    await assertDocumentPrintAccess(ctx);
     c.header('Content-Security-Policy', CSP);
     c.header('X-Content-Type-Options', 'nosniff');
-    return c.html(renderCashOrder(await cashOrderData(ctx.db, id, form)));
+    return c.html(await renderDocumentHtml(ctx.db, id, form));
   });
 
 /** Кассы: чтение — любой участник, меняет admin и выше */

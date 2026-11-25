@@ -2,7 +2,7 @@
    Запросы лежат под ['ws', id, 'docs', 'money', …]: события документов инвалидируют их вместе с остальными документами. */
 import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DocumentStatus, PaymentLineInput, PaymentState } from '@erp/shared';
+import type { CountryCode, DocumentStatus, PaymentLineInput, PaymentState } from '@erp/shared';
 import { API_BASE, ok } from '../data/api';
 import { call, useWsId } from '../meta/data';
 
@@ -50,6 +50,7 @@ export interface PaymentDetail {
   operation: string | null;
   organizationId: string;
   organizationName: string | null;
+  organizationCountry: CountryCode | null;
   counterpartyId: string | null;
   counterparty: { id: string; name: string; settlementMode: string } | null;
   accountableMemberId: string | null;
@@ -460,8 +461,10 @@ export interface BankImportRow {
   docDate: string;
   bookedDate: string;
   amount: string;
+  currency?: string;
+  knp?: string;
   purpose: string;
-  party: { name: string; inn: string; kpp: string; account: string; bik: string; bank: string };
+  party: { name: string; inn: string; kpp: string; account: string; bik: string; bank: string; kbe?: string };
   counterpartyId: string | null;
   counterpartyName: string | null;
   candidates: { id: string; name: string }[];

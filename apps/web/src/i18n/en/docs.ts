@@ -339,6 +339,12 @@ export const docs = {
 
   /* ----------- реквизиты контрагента ----------- */
   requisites: {
+    country: 'Country',
+    countries: { RU: 'Russia (RU)', KZ: 'Kazakhstan (KZ)', AE: 'United Arab Emirates (AE)' },
+    countryFields: { binIin: 'BIN / IIN', iik: 'IIK (IBAN)', bik: 'BIC / SWIFT', kbe: 'KBe', knp: 'KNP', trn: 'TRN', iban: 'IBAN', bic: 'BIC / SWIFT' },
+    countryFieldInvalid: 'Check the format and checksum.',
+    edit: 'Edit requisites',
+    saved: 'Requisites saved',
     kind: 'Type',
     fullName: 'Full name',
     inn: 'INN',
@@ -370,6 +376,15 @@ export const docs = {
 
   /* ----------- карточка документа (DocumentPage) ----------- */
   document: {
+    lineStockDetails: "Storage and customs",
+    lineBin: "Bin",
+    lineToBin: "Destination bin",
+    lineNoBin: "No bin",
+    lineGtd: "Customs declaration (GTD)",
+    lineOrigin: "Country of origin",
+    lineOriginHint: "ISO-2 code or name with a numeric code, e.g. CN or China (156)",
+    lineGtdInvalid: "Use letters, digits, spaces, slashes, dots or hyphens",
+    lineOriginInvalid: "Enter an ISO-2 code or a name with its numeric code",
     draftRef: '(draft)',
     title: 'Document',
     createError: 'Could not create the document',
@@ -1195,6 +1210,13 @@ export const docs = {
       contract_order: 'Contract + Customer order',
       contract_invoice: 'Contract + Invoice',
       contract_work_order: 'Contract + Work order',
+      kz_invoice: 'Invoice for payment (KZ)',
+      kz_z2: 'Goods issue note (Z-2, KZ)',
+      kz_r1: 'Work completion certificate (R-1, KZ)',
+      kz_tax_invoice: 'Tax invoice (KZ)',
+      kz_pko: 'Cash receipt order (KO-1, KZ)',
+      kz_rko: 'Cash payment order (KO-2, KZ)',
+      kz_payment_order: 'Payment order (KZ)',
     },
     newTemplateContract: 'New contract template',
     contractHint: 'Contract parameters and the parties come from the contract card; for combined purposes the document parameters and the {{Товары}} block come from the document.',

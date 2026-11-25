@@ -1,16 +1,20 @@
 /* Аутентификация: регистрация, вход, выход, /auth/me. Argon2id через Bun.password, сессии в БД (id = sha256 токена),
    cookie httpOnly + SameSite=Lax (+ Secure в production). Вход и регистрация ограничены rate-limit'ом в таблице rate_limits. */
 import { zValidator } from '@hono/zod-validator';
-import { and, desc, eq, ne, sql as dsql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, ne, sql as dsql, type SQL } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
-import { rateLimits, sessions, users, withContext, type Sql } from '@erp/db';
-import { meUpdateBody, passwordChangeBody, signinBody, signupBody } from '@erp/shared';
+import { createFactory } from 'hono/factory';
+import {
+  clearLoginChallenge, disableTotp, enableTotp, rateLimits, recordLoginAttempt, redeemLoginFactor, sessions,
+  setupTotp, users, withContext, type Db, type Sql,
+} from '@erp/db';
+import { loginFactorBody, meUpdateBody, passwordChangeBody, RECOVERY_CODE_RE, signinBody, signupBody, totpDisableBody, totpVerifyBody } from '@erp/shared';
 import { AppError } from './errors';
 import { validationHook } from './crud';
 import { requireSession, sha256, SESSION_COOKIE } from './middleware';
 import { notifySessionRevoke } from './session-cache';
-import { createWorkspace, listMyWorkspaces } from './workspaces-service';
+import { createWorkspace, listMyWorkspaces, queryMyWorkspaces } from './workspaces-service';
 import type { AppConfig, AppEnv } from './types';
 
 /** Удаляет сессии пользователя по условию и сбрасывает их из кэша — в этом процессе сразу, в других через NOTIFY */
@@ -28,7 +32,7 @@ async function closeSessions(c: Context<AppEnv>, userId: string, cond: SQL): Pro
     Свои воркспейсы и приглашения ему тоже нельзя: сброс пересоздаёт только демо, а вход открывает последний выбранный воркспейс */
 export function assertNotDemo(c: Context<AppEnv>) {
   const demo = c.get('config').demoEmail;
-  if (demo && c.get('user').email.toLowerCase() === demo) throw new AppError(403, 'demo_account_locked', 'The shared demo account cannot change its password, close sessions, create workspaces or accept invites');
+  if (demo && c.get('user').email.toLowerCase() === demo) throw new AppError(403, 'demo_account_locked', 'The shared demo account cannot change login protection, close sessions, create workspaces or accept invites');
 }
 
 const randomToken = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
@@ -59,17 +63,73 @@ async function hit(sql: Sql, cfg: AppConfig, key: string): Promise<void> {
 
 const clear = (sql: Sql, key: string) => withContext(sql, {}, db => db.delete(rateLimits).where(eq(rateLimits.key, key)));
 
-async function startSession(c: Context<AppEnv>, userId: string, cfg: AppConfig): Promise<void> {
+type LoginMethod = typeof sessions.$inferInsert.loginMethod;
+const CHALLENGE_TTL_MS = 5 * 60_000;
+
+const loginIdentity = (c: Context<AppEnv>) => ({
+  ip: c.get('ip'),
+  userAgent: c.req.header('user-agent')?.slice(0, 300) ?? null,
+});
+
+async function createSession(db: Db, c: Context<AppEnv>, userId: string, loginMethod: LoginMethod = 'password') {
   const token = randomToken();
-  const expiresAt = new Date(Date.now() + cfg.sessionTtlDays * 864e5);
-  await withContext(c.get('sql'), { userId }, async db => {
-    await db.insert(sessions).values({ id: sha256(token), userId, expiresAt, ip: c.get('ip'), userAgent: c.req.header('user-agent')?.slice(0, 300) ?? null });
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
-  });
-  setCookie(c, SESSION_COOKIE, token, { httpOnly: true, sameSite: 'Lax', secure: cfg.cookieSecure, path: '/', expires: expiresAt });
+  const expiresAt = new Date(Date.now() + c.get('config').sessionTtlDays * 864e5);
+  await db.insert(sessions).values({ id: sha256(token), userId, expiresAt, loginMethod, ...loginIdentity(c) });
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
+  return { token, expiresAt };
 }
 
+function issueSession(c: Context<AppEnv>, session: { token: string; expiresAt: Date }) {
+  setCookie(c, SESSION_COOKIE, session.token, { httpOnly: true, sameSite: 'Lax', secure: c.get('config').cookieSecure, path: '/', expires: session.expiresAt });
+}
+
+const sessionUser = ({ id, email, name, locale, prefs, isOperator }: typeof users.$inferSelect) => ({ id, email, name, locale, prefs, isOperator });
+
+const loginHandlers = createFactory<AppEnv>().createHandlers(zValidator('json', signinBody, validationHook), async c => {
+  const sql = c.get('sql');
+  const cfg = c.get('config');
+  const { email, password } = c.req.valid('json');
+  const emailKey = `signin:email:${email}`;
+  await hit(sql, cfg, `signin:ip:${c.get('ip')}`);
+  await hit(sql, cfg, emailKey);
+  const found = await withContext(sql, {}, async db => (await db.select().from(users).where(eq(dsql`lower(${users.email})`, email)).limit(1))[0]);
+  const verifyAgainst = found && !found.isService ? found.passwordHash : await getDummyHash();
+  const verified = await Bun.password.verify(password, verifyAgainst);
+  const result = await withContext(sql, { userId: found?.id }, async db => {
+    const identity = { ...loginIdentity(c), userId: found?.id ?? null, email };
+    // Serialize issuance with password changes and 2FA updates. The expensive password check ran outside the lock.
+    const [user] = found && verified && !found.isService
+      ? await db.select().from(users).where(eq(users.id, found.id)).for('update')
+      : [];
+    if (!user || user.isService || user.passwordHash !== verifyAgainst) {
+      await recordLoginAttempt(db, { ...identity, method: 'password', status: 'failed_password' });
+      return null;
+    }
+    await db.delete(rateLimits).where(eq(rateLimits.key, emailKey));
+    if (user.totpEnabled) {
+      const challengeToken = randomToken();
+      await db.update(users).set({
+        totpChallengeHash: sha256(challengeToken),
+        totpChallengeExpiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
+      }).where(eq(users.id, user.id));
+      return { kind: 'challenge', challengeToken } as const;
+    }
+    const session = await createSession(db, c, user.id);
+    await recordLoginAttempt(db, { ...identity, method: 'password', status: 'ok' });
+    const workspaces = await queryMyWorkspaces(db, user.id);
+    return { kind: 'success', session, user: sessionUser(user), workspaces } as const;
+  });
+  if (!result) throw new AppError(401, 'invalid_credentials', 'Invalid email or password');
+  if (result.kind === 'challenge') return c.json({ requires2fa: true as const, challengeToken: result.challengeToken });
+  issueSession(c, result.session);
+  return c.json({ user: result.user, workspaces: result.workspaces });
+});
+
 export const authRoutes = new Hono<AppEnv>()
+  .use('*', async (c, next) => {
+    c.header('Cache-Control', 'no-store');
+    await next();
+  })
   .post('/signup', zValidator('json', signupBody, validationHook), async c => {
     const sql = c.get('sql');
     const cfg = c.get('config');
@@ -82,26 +142,82 @@ export const authRoutes = new Hono<AppEnv>()
       const [u] = await db.insert(users).values({ email: body.email, passwordHash, name: body.name }).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator });
       return u!;
     });
-    await startSession(c, user.id, cfg);
+    issueSession(c, await withContext(sql, { userId: user.id }, db => createSession(db, c, user.id)));
     if (body.workspaceName) await createWorkspace(sql, user, { name: body.workspaceName });
     return c.json({ user, workspaces: await listMyWorkspaces(sql, user.id) }, 201);
   })
-  .post('/signin', zValidator('json', signinBody, validationHook), async c => {
+  .post('/signin', ...loginHandlers)
+  .post('/login', ...loginHandlers)
+  .post('/login/2fa', zValidator('json', loginFactorBody, validationHook), async c => {
     const sql = c.get('sql');
     const cfg = c.get('config');
-    const { email, password } = c.req.valid('json');
-    // Лимит и по IP, и по email: перебор пароля одной учётки с разных адресов тоже упирается в лимит
-    await hit(sql, cfg, `signin:ip:${c.get('ip')}`);
-    await hit(sql, cfg, `signin:email:${email}`);
-    const found = await withContext(sql, {}, async db => (await db.select().from(users).where(eq(dsql`lower(${users.email})`, email)).limit(1))[0]);
-    // Служебный пользователь (агент) по паролю не входит: пароль не проверяется вовсе, но время ответа сохраняется
-    const verifyAgainst = found && !found.isService ? found.passwordHash : await getDummyHash();
-    const ok = await Bun.password.verify(password, verifyAgainst);
-    if (!found || !ok) throw new AppError(401, 'invalid_credentials', 'Invalid email or password');
-    await clear(sql, `signin:email:${email}`);
-    await startSession(c, found.id, cfg);
-    const user = { id: found.id, email: found.email, name: found.name, locale: found.locale, prefs: found.prefs, isOperator: found.isOperator };
-    return c.json({ user, workspaces: await listMyWorkspaces(sql, found.id) });
+    const { challengeToken, code } = c.req.valid('json');
+    await hit(sql, cfg, `login-2fa:ip:${c.get('ip')}`);
+    const challengeHash = sha256(challengeToken);
+    const activeChallenge = () => and(eq(users.totpEnabled, true), eq(users.totpChallengeHash, challengeHash), gt(users.totpChallengeExpiresAt, new Date()));
+    const [found] = await withContext(sql, {}, db => db.select({ id: users.id }).from(users).where(activeChallenge()));
+    if (!found) throw new AppError(401, 'invalid_login_challenge', 'The sign-in challenge has expired. Sign in again.');
+    await hit(sql, cfg, `login-2fa:user:${found.id}`);
+    const result = await withContext(sql, { userId: found.id }, async db => {
+      const [user] = await db.select().from(users).where(and(eq(users.id, found.id), activeChallenge())).for('update');
+      if (!user || !user.totpChallengeExpiresAt || user.totpChallengeExpiresAt.getTime() <= Date.now()) return { kind: 'expired' } as const;
+      const identity = { ...loginIdentity(c), userId: user.id, email: user.email };
+      const method = await redeemLoginFactor(db, user, code);
+      if (!method) {
+        await recordLoginAttempt(db, { ...identity, method: RECOVERY_CODE_RE.test(code) ? 'recovery' : 'totp', status: 'failed_totp' });
+        return { kind: 'invalid' } as const;
+      }
+      await db.update(users).set(clearLoginChallenge).where(eq(users.id, user.id));
+      const session = await createSession(db, c, user.id, method);
+      await recordLoginAttempt(db, { ...identity, method, status: 'ok' });
+      const workspaces = await queryMyWorkspaces(db, user.id);
+      return { kind: 'success', user: sessionUser(user), session, workspaces } as const;
+    });
+    if (result.kind === 'expired') throw new AppError(401, 'invalid_login_challenge', 'The sign-in challenge has expired. Sign in again.');
+    if (result.kind === 'invalid') throw new AppError(401, 'invalid_totp', 'The authentication or recovery code is incorrect or has expired');
+    issueSession(c, result.session);
+    return c.json({ user: result.user, workspaces: result.workspaces });
+  })
+  .get('/2fa/status', requireSession, async c => {
+    const { id } = c.get('user');
+    const [state] = await withContext(c.get('sql'), { userId: id }, db => db.select({
+      enabled: users.totpEnabled,
+      recoveryCodesRemaining: dsql<number>`cardinality(${users.recoveryCodesHashes})`,
+    }).from(users).where(eq(users.id, id)));
+    return c.json({ ...state!, canSetup: c.get('user').email.toLowerCase() !== c.get('config').demoEmail });
+  })
+  .post('/2fa/setup', requireSession, async c => {
+    assertNotDemo(c);
+    const { id, email } = c.get('user');
+    await hit(c.get('sql'), c.get('config'), `totp-setup:user:${id}`);
+    return c.json(await withContext(c.get('sql'), { userId: id }, db => setupTotp(db, id, email)));
+  })
+  .post('/2fa/verify', requireSession, zValidator('json', totpVerifyBody, validationHook), async c => {
+    assertNotDemo(c);
+    const { id } = c.get('user');
+    const { code } = c.req.valid('json');
+    await hit(c.get('sql'), c.get('config'), `totp-verify:user:${id}`);
+    const { codes, revoke } = await withContext(c.get('sql'), { userId: id }, async db => {
+      const codes = await enableTotp(db, id, code);
+      const rows = await db.delete(sessions).where(and(eq(sessions.userId, id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id });
+      const revoke = { sessionIds: rows.map(row => row.id) };
+      await notifySessionRevoke(db, revoke);
+      return { codes, revoke };
+    });
+    c.get('sessionCache').revoke(revoke);
+    return c.json({ enabled: true as const, recoveryCodes: codes });
+  })
+  .post('/2fa/disable', requireSession, zValidator('json', totpDisableBody, validationHook), async c => {
+    assertNotDemo(c);
+    const { id } = c.get('user');
+    const body = c.req.valid('json');
+    await hit(c.get('sql'), c.get('config'), `totp-disable:user:${id}`);
+    await withContext(c.get('sql'), { userId: id }, async db => {
+      await disableTotp(db, id, body);
+      await notifySessionRevoke(db, { userId: id, closeSockets: true });
+    });
+    c.get('sessionCache').revoke({ userId: id });
+    return c.json({ enabled: false as const });
   })
   .post('/signout', requireSession, async c => {
     const revoke = { sessionIds: [c.get('sessionId')] };
@@ -147,7 +263,7 @@ export const authRoutes = new Hono<AppEnv>()
     if (!found || !(await Bun.password.verify(current, found.hash))) throw new AppError(400, 'wrong_password', 'The current password is incorrect');
     const passwordHash = await Bun.password.hash(next, { algorithm: 'argon2id' });
     const closed = await withContext(sql, { userId: me.id }, async db => {
-      await db.update(users).set({ passwordHash }).where(eq(users.id, me.id));
+      await db.update(users).set({ passwordHash, ...clearLoginChallenge }).where(eq(users.id, me.id));
       const rows = await db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id });
       await notifySessionRevoke(db, { sessionIds: rows.map(r => r.id) });
       return rows;

@@ -108,6 +108,17 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         ],
         screen: 'Permisos por puesto: alcance de visibilidad de registros y campos sensibles ocultos',
       },
+      {
+        title: 'Seguridad de acceso: 2FA, lista blanca IP y auditoría',
+        text: 'Protege el espacio de trabajo con autenticación en dos pasos y reglas de IP confiables. Las políticas se aplican de forma uniforme en sesiones web, tokens Bearer, WebSockets y MCP.',
+        list: [
+          'Autenticación de dos factores (app TOTP + configuración por código QR + 10 códigos de recuperación de un solo uso)',
+          'Activación obligatoria de 2FA para todo el espacio de trabajo con un solo interruptor',
+          'Lista blanca IPv4/IPv6/CIDR con protección integrada contra autobloqueo del administrador',
+          'Registro de auditoría de inicios de sesión con intentos, IPs y canales (sesiones, tokens Bearer, WebSockets, MCP)',
+        ],
+        screen: 'Ajustes de seguridad de acceso: 2FA por QR, lista blanca IP y registro de inicios de sesión',
+      },
     ],
     chain: [
       ['crm', 'Cliente, negocio, fuente de captación y campaña.'],
@@ -122,6 +133,7 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['¿Cómo se vincula una campaña con un lead?', 'Mediante utm_campaign recibido desde el formulario web y asociado a una campaña activa.'],
       ['¿Cómo funciona el widget de IA embebible con los gestores?', 'Se instala en cualquier web con una etiqueta <script> y lista blanca de dominios para responder desde la base de conocimiento de tu empresa. Con «Llamar a un gestor» la conversación pasa a los Chats multilingües con traducción contextual automática, y cualquier chat se convierte en lead en un clic.'],
       ['¿Se pueden ocultar montos de negocios y contactos a ciertos roles?', 'Sí. Cada puesto define el alcance de registros («Todos», «Departamento y subdepartamentos» o «Solo propios» mediante PostgreSQL RLS) y los campos ocultos: montos y probabilidades, teléfonos/correos, datos bancarios, totales de documentos y campos personalizados.'],
+      ['¿FutureERP admite 2FA y restricción de acceso por IP?', 'Sí. Incluye autenticación 2FA TOTP (QR y 10 códigos de recuperación), opción de 2FA obligatoria en todo el espacio, lista blanca IPv4/IPv6/CIDR con protección contra autobloqueo del administrador y registro de auditoría de inicios de sesión — aplicado en sesiones, tokens Bearer, WebSockets y MCP.'],
     ],
   },
   docs: {
@@ -150,6 +162,26 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         list: ['Opciones de presupuesto con selección de variante principal', 'Imágenes de productos opcionales en la plantilla', 'Descarga de múltiples facturas en un solo archivo'],
         screen: 'Vista imprimible de presupuesto en PDF',
       },
+      {
+        title: 'Portal externo para proveedores',
+        text: 'Colabora con tus proveedores mediante un enlace seguro rotable, sin necesidad de crearles una cuenta ni licencia. Cada proveedor ve únicamente sus propios pedidos.',
+        list: [
+          'Enlace seguro rotable sin registro ni acceso al resto del espacio de trabajo',
+          'Los proveedores confirman, marcan como enviado o rechazan pedidos e indican la fecha estimada de envío',
+          'Comentarios en el pedido y carga directa de facturas (PDF, imágenes, XLSX) dentro de la orden de compra',
+        ],
+        screen: 'Portal de proveedores: pedidos de compra, estados de envío, comentarios y carga de facturas',
+      },
+      {
+        title: 'Paquetes multipaís y multidivisa',
+        text: 'Los paquetes modulares por país (CountryPack) se configuran por cada organización con tasas de IVA locales, divisas, validación de identificadores fiscales, formularios imprimibles y extractos bancarios.',
+        list: [
+          'Paquete de EAU: divisa AED, IVA 5% / 0% / exento, validación de TRN e IBAN',
+          'Paquetes regionales adicionales (incluyendo Kazajistán) con tasas de IVA locales, formularios y lectura de extractos bancarios',
+          'Arquitectura CountryPack extensible para operar entidades en distintos países desde un solo espacio',
+        ],
+        screen: 'Ajustes de organización: selección de paquete por país (EAU y paquetes regionales), divisa e IVA',
+      },
     ],
     chain: [
       ['crm', 'Cliente, responsable y fuente de captación.'],
@@ -162,6 +194,8 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['¿Se puede editar un documento contabilizado?', 'No, primero hay que descontabilizarlo, siempre que no tenga documentos posteriores contabilizados.'],
       ['¿Se puede entregar más de lo pedido?', 'No. El cumplimiento no puede superar lo pedido; el nuevo documento propone solo el saldo pendiente.'],
       ['¿Cómo obtengo el PDF imprimible?', 'Desde el propio documento puedes abrir y descargar el PDF. Varias facturas pueden exportarse en un solo archivo.'],
+      ['¿Necesita el proveedor una cuenta para usar el Portal de proveedores?', 'No. El proveedor accede mediante un enlace seguro rotable donde ve solo sus pedidos de compra, puede confirmar, marcar enviado o rechazar, indicar la fecha prevista de envío, comentar y subir facturas (PDF, imágenes, XLSX) directamente al pedido.'],
+      ['¿Admite FutureERP múltiples países y divisas?', 'Sí. Los paquetes modulares por país (CountryPack) se configuran por organización con tasas de IVA locales, divisas, validación fiscal, formularios y extractos bancarios — incluyendo EAU (AED, IVA 5%/0%/exento, TRN, IBAN) y paquetes regionales extensibles como Kazajistán.'],
     ],
   },
 };

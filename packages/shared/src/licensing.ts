@@ -35,7 +35,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: [
       '/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/attachments', '/activity', '/events',
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
-      '/companies', '/contacts', '/positions', '/departments', '/product-kinds', '/secrets', '/license', '/api-tokens', '/webhooks', '/project-templates', '/mailboxes', '/emails', '/whiteboards', '/chats',
+      '/companies', '/contacts', '/positions', '/departments', '/product-kinds', '/secrets', '/security', '/license', '/api-tokens', '/webhooks', '/project-templates', '/mailboxes', '/emails', '/whiteboards', '/chats',
     ],
     sections: ['home', 'inbox', 'email', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts', 'whiteboards', 'chats'],
     settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'departments', 'product-kinds', 'project-templates', 'mail'],
@@ -54,7 +54,7 @@ export const MODULES: readonly ModuleDef[] = [
   }),
   def({
     id: 'trade',
-    paths: ['/documents', '/stock', '/stock-levels', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/doc-templates', '/supplier-ratings'],
+    paths: ['/documents', '/stock', '/stock-levels', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/supplier-portal', '/serials', '/doc-templates', '/supplier-ratings'],
     hooks: ['prices'],
     sections: ['sales', 'salesProfit', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'stockAging', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates', 'supplierRatings'],
     jobs: ['document.pdf', 'document.docx', 'settlement.act_pdf'],

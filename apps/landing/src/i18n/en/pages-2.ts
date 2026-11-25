@@ -124,6 +124,17 @@ export const enPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
         ],
         screen: 'Live preview of 58×40 mm barcode labels and A6/A4 price tags with EAN-13',
       },
+      {
+        title: 'Warehouse bin locations & batch origin / customs tracking',
+        text: 'Enable optional bin-level storage per warehouse and trace batch country of origin and customs declaration details from goods receipt through shipment and print forms.',
+        list: [
+          'Optional per-warehouse bin hierarchy: zone, rack, shelf, and cell',
+          'Real-time bin-level stock balances with placement, picking, and transfers between bins',
+          'Batch country of origin and customs declaration number tracking across receipts, lots, and shipments',
+          'Origin and customs fields carried automatically onto outbound documents and printable forms',
+        ],
+        screen: 'Warehouse bin hierarchy with bin-level stock balances and batch origin/customs tracking',
+      },
     ],
     chain: [
       ['docs', 'Quote, customer order, and invoice created in one chain.'],
@@ -138,6 +149,7 @@ export const enPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
       ['How do we record a return?', 'Create a customer return from a shipment, or a vendor return from a goods receipt.'],
       ['How are P&L profit and ABC analysis calculated?', 'Cost is locked when a shipment is posted. Sales P&L reports gross profit and margin across 6 groupings (product, category, client, manager, organization, warehouse), while ABC analysis classifies items by revenue and profit with configurable 80/15/5 thresholds and XLSX export.'],
       ['What barcode label and price tag formats are supported?', 'You can generate internal EAN-13 barcodes singly or in bulk and export PDFs with live preview for 58×40 and 43×25 mm labels as well as A6 and A4 grid price tags directly from the catalog or goods receipts.'],
+      ['Are warehouse bins and customs/origin tracking supported?', 'Yes. Bin/location storage (zone/rack/shelf/cell hierarchy, bin-level balances, placement, picking, and bin-to-bin transfers) can be enabled per warehouse. You can also track batch country of origin and customs declaration numbers across receipts, lots, shipments, and print forms.'],
     ],
   },
 };

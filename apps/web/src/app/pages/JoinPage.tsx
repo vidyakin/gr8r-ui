@@ -5,7 +5,7 @@ import { toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { Logo } from '../components/brand';
 import { AuthCard, AuthShell } from '../components/auth-shell';
-import { apiFor, errorMessage, ok } from '../data/api';
+import { ApiError, apiFor, errorMessage, ok } from '../data/api';
 import { rememberWorkspace, useSession } from '../data/session';
 import { pendingInvite } from '../lib/auth';
 import { SECTIONS } from '../routes';
@@ -30,7 +30,13 @@ export function JoinPage() {
         toast(tr('pages.join.joined', { name: ws.name }));
         navigate(SECTIONS.home.path, { replace: true });
       })
-      .catch(e => setError(errorMessage(e)));
+      .catch(e => {
+        if (e instanceof ApiError && e.code === 'totp_required') {
+          navigate('/setup-2fa', { replace: true, state: { returnTo: `/join/${token}` } });
+        } else {
+          setError(errorMessage(e));
+        }
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.status]);
 

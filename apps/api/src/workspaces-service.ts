@@ -1,6 +1,6 @@
 /* Операции над воркспейсами, общие для регистрации и /workspaces: создание (создатель — owner), список моих. */
 import { and, eq, isNull, sql as dsql } from 'drizzle-orm';
-import { initWorkspace, memberships, slugify, uuidv7, withContext, workspaces, type Sql } from '@erp/db';
+import { initWorkspace, memberships, slugify, uuidv7, withContext, workspaces, type Db, type Sql } from '@erp/db';
 import type { SessionUser } from './types';
 
 export { slugify };
@@ -21,27 +21,28 @@ export async function createWorkspace(sql: Sql, user: Pick<SessionUser, 'id' | '
   });
 }
 
-/** Мои воркспейсы с ролью и id моего профиля (политики RLS отдают только воркспейсы, где я состою) */
-export async function listMyWorkspaces(sql: Sql, userId: string) {
-  return withContext(sql, { userId }, async db => {
-    const rows = await db
-      .select({
-        id: workspaces.id,
-        name: workspaces.name,
-        slug: workspaces.slug,
-        color: workspaces.color,
-        brand: workspaces.brand,
-        createdAt: workspaces.createdAt,
-        role: memberships.role,
-        // Отраслевые опции воркспейса (задача 1258): по ним интерфейс прячет партии, сроки годности и карантин
-        industryOptions: workspaces.industryOptions,
-        // Язык воркспейса по умолчанию (settings.locale), null — не задан
-        locale: dsql<string | null>`${workspaces.settings}->>'locale'`,
-      })
-      .from(memberships)
-      .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
-      .where(and(eq(memberships.userId, userId), isNull(workspaces.deleteRequestedAt)))
-      .orderBy(workspaces.createdAt);
-    return rows;
-  });
+/** Мои воркспейсы (политики RLS отдают только воркспейсы, где я состою). */
+export function queryMyWorkspaces(db: Db, userId: string) {
+  return db
+    .select({
+      id: workspaces.id,
+      name: workspaces.name,
+      slug: workspaces.slug,
+      color: workspaces.color,
+      brand: workspaces.brand,
+      createdAt: workspaces.createdAt,
+      role: memberships.role,
+      // Отраслевые опции воркспейса (задача 1258): по ним интерфейс прячет партии, сроки годности и карантин
+      industryOptions: workspaces.industryOptions,
+      // Язык воркспейса по умолчанию (settings.locale), null — не задан
+      locale: dsql<string | null>`${workspaces.settings}->>'locale'`,
+    })
+    .from(memberships)
+    .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
+    .where(and(eq(memberships.userId, userId), isNull(workspaces.deleteRequestedAt)))
+    .orderBy(workspaces.createdAt);
+}
+
+export function listMyWorkspaces(sql: Sql, userId: string) {
+  return withContext(sql, { userId }, async db => queryMyWorkspaces(db, userId));
 }

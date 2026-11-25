@@ -3,6 +3,8 @@
    (мгновенный пересчёт табличной части). Деньги внутри считаются целыми копейками, наружу идут строками с двумя знаками. */
 import { dec, fmt, roundDiv, type Dec } from './decimal';
 import type { VatRate } from './constants';
+import { COUNTRY_PRINT_FORMS, getCountryPack } from './countries';
+export const PRINT_FORMS = COUNTRY_PRINT_FORMS;
 
 /* ---------------- типы и статусы ---------------- */
 
@@ -12,15 +14,28 @@ export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling', 'cash', 'payroll'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
-export const PRINT_FORMS = ['quote', 'invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'supplier_order', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance', 'contract_order', 'contract_invoice', 'contract_work_order'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
-export const PRINT_FORM_LABELS: Record<PrintForm, string> = { quote: 'Commercial proposal', invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', supplier_order: 'Supplier order', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act', ko1: 'Cash receipt order (KO-1)', ko2: 'Cash payment order (KO-2)', bank_receipt: 'Receipt to bank account', payment_order: 'Payment order (0401060)', advance_report: 'Advance report (AO-1)', opening_balance: 'Opening balances', contract_order: 'Contract + customer order', contract_invoice: 'Contract + invoice', contract_work_order: 'Contract + work order' };
+export const PRINT_FORM_LABELS: Record<PrintForm, string> = { quote: 'Commercial proposal', invoice: 'Invoice for payment', upd: 'UPD', vat_invoice: 'VAT invoice', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', supplier_order: 'Supplier order', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act', ko1: 'Cash receipt order (KO-1)', ko2: 'Cash payment order (KO-2)', bank_receipt: 'Receipt to bank account', payment_order: 'Payment order (0401060)', advance_report: 'Advance report (AO-1)', opening_balance: 'Opening balances', contract_order: 'Contract + customer order', contract_invoice: 'Contract + invoice', contract_work_order: 'Contract + work order',
+  kz_invoice: 'Invoice for payment (KZ)', kz_z2: 'Goods issue note (Z-2, KZ)', kz_r1: 'Work completion certificate (R-1, KZ)',
+  kz_tax_invoice: 'Tax invoice (KZ)', kz_pko: 'Cash receipt order (KO-1, KZ)', kz_rko: 'Cash payment order (KO-2, KZ)',
+  kz_payment_order: 'Payment order (KZ)',
+};
 
 /** Составная форма «Договор + документ»: договор берётся из documents.contract_id, шаблон — с одноимённым назначением (docs/architecture/contracts.md) */
 export const CONTRACT_FORM_BY_TYPE: Partial<Record<string, PrintForm>> = { customer_order: 'contract_order', invoice: 'contract_invoice', work_order: 'contract_work_order' };
 export const isContractForm = (f: string): boolean => f === 'contract_order' || f === 'contract_invoice' || f === 'contract_work_order';
-/** Печатная форма доступна типу документа: обычные формы и составная с договором */
-export const formAllowedFor = (type: string, form: PrintForm): boolean => (DOCUMENT_META as Record<string, { forms: PrintForm[] }>)[type]?.forms.includes(form) === true || CONTRACT_FORM_BY_TYPE[type] === form;
+/** Формы в меню «Печать» по типу документа и стране его организации. */
+export function printFormsFor(type: string, country?: string | null): readonly PrintForm[] {
+  const pack = getCountryPack(country);
+  const forms = pack.printFormsByType && Object.hasOwn(pack.printFormsByType, type)
+    ? pack.printFormsByType[type]
+    : DOCUMENT_META[type as DocumentType]?.forms;
+  return (forms ?? []).filter((form): form is PrintForm => pack.printFormIds.includes(form));
+}
+
+/** Обычные формы и составная форма с договором. */
+export const formAllowedFor = (type: string, form: PrintForm, country?: string | null): boolean =>
+  printFormsFor(type, country).includes(form) || (CONTRACT_FORM_BY_TYPE[type] === form && getCountryPack(country).printFormIds.includes(form));
 /** Форма печатается по шаблону из справочника (КП и договоры) */
 export const usesTemplate = (f: string): boolean => f === 'quote' || isContractForm(f);
 
@@ -153,7 +168,7 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   quote: { label: 'Quote', group: 'sales', prefix: 'КП', stock: null, party: 'customer', basedOn: [], fulfils: false, forms: ['quote', 'invoice'] },
   customer_order: { label: 'Customer order', group: 'sales', prefix: 'ЗК', stock: null, party: 'customer', basedOn: ['quote'], fulfils: false, forms: ['quote', 'invoice'], reserves: true, isOrder: true, reservedUntil: ['realization'] },
   invoice: { label: 'Invoice', group: 'sales', prefix: 'СЧ', stock: null, party: 'customer', basedOn: ['quote', 'customer_order', 'work_order'], fulfils: false, forms: ['invoice'] },
-  realization: { label: 'Shipment (UPD)', group: 'sales', prefix: 'РТ', stock: 'out', party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['upd', 'torg12', 'warranty_card'] },
+  realization: { label: 'Shipment (UPD)', group: 'sales', prefix: 'РТ', stock: 'out', party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['upd', 'vat_invoice', 'torg12', 'warranty_card'] },
   act: { label: 'Service act', group: 'sales', prefix: 'АКТ', stock: null, party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['act'] },
   customer_return: { label: 'Customer return', group: 'sales', prefix: 'ВК', stock: 'in', party: 'customer', basedOn: ['realization'], fulfils: false, forms: [], isReturn: true },
   supplier_order: { label: 'Supplier order', group: 'purchases', prefix: 'ЗС', stock: null, party: 'supplier', basedOn: [], fulfils: false, forms: ['supplier_order'], isOrder: true, reservedUntil: ['receipt'] },
@@ -429,12 +444,14 @@ function lineKop(l: LineInput, includesVat: boolean): { net: bigint; vat: bigint
   const f = l.unitFactor === undefined || l.unitFactor === null || l.unitFactor === '' ? 1_000_000n : dec(l.unitFactor);
   if (f <= 0n) throw new RangeError('Unit factor must be positive');
   const gross = roundDiv(dec(l.qty) * dec(l.price) * (100n * 1_000_000n - disc) * 1_000_000n, 10n ** 18n * f);
-  const r = BigInt(vatPercent(l.vatRate));
+  const [whole, fraction = ''] = (l.vatRate === 'none' ? '0' : l.vatRate).split('.');
+  const r = BigInt(whole + fraction);
+  const hundred = 100n * 10n ** BigInt(fraction.length);
   if (includesVat) {
-    const vat = roundDiv(gross * r, 100n + r);
+    const vat = roundDiv(gross * r, hundred + r);
     return { net: gross - vat, vat, total: gross };
   }
-  const vat = roundDiv(gross * r, 100n);
+  const vat = roundDiv(gross * r, hundred);
   return { net: gross, vat, total: gross + vat };
 }
 

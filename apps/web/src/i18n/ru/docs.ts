@@ -340,6 +340,12 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- реквизиты контрагента ----------- */
   requisites: {
+    country: 'Страна',
+    countries: { RU: 'Россия (RU)', KZ: 'Казахстан (KZ)', AE: 'ОАЭ (AE)' },
+    countryFields: { binIin: 'БИН / ИИН', iik: 'ИИК (IBAN)', bik: 'БИК / SWIFT', kbe: 'КБе', knp: 'КНП', trn: 'TRN', iban: 'IBAN', bic: 'BIC / SWIFT' },
+    countryFieldInvalid: 'Проверьте формат и контрольную сумму.',
+    edit: 'Изменить реквизиты',
+    saved: 'Реквизиты сохранены',
     kind: 'Вид',
     fullName: 'Полное название',
     inn: 'ИНН',
@@ -371,6 +377,15 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- карточка документа (DocumentPage) ----------- */
   document: {
+    lineStockDetails: "Хранение и ГТД",
+    lineBin: "Ячейка",
+    lineToBin: "Ячейка назначения",
+    lineNoBin: "Без ячейки",
+    lineGtd: "ГТД",
+    lineOrigin: "Страна происхождения",
+    lineOriginHint: "Код ISO-2 или название с кодом ОКСМ, например CN или Китай (156)",
+    lineGtdInvalid: "Используйте буквы, цифры, пробелы, косые черты, точки или дефисы",
+    lineOriginInvalid: "Укажите код ISO-2 или название с кодом ОКСМ",
     draftRef: '(черновик)',
     title: 'Документ',
     createError: 'Не удалось создать документ',
@@ -1196,6 +1211,13 @@ export const docs: Widen<typeof D> = {
       contract_order: 'Договор + Заказ покупателя',
       contract_invoice: 'Договор + Счёт',
       contract_work_order: 'Договор + Заказ-наряд',
+      kz_invoice: 'Счёт на оплату (КЗ)',
+      kz_z2: 'Накладная на отпуск запасов на сторону (З-2)',
+      kz_r1: 'Акт выполненных работ (Р-1)',
+      kz_tax_invoice: 'Счёт-фактура (КЗ)',
+      kz_pko: 'Приходный кассовый ордер (КО-1, КЗ)',
+      kz_rko: 'Расходный кассовый ордер (КО-2, КЗ)',
+      kz_payment_order: 'Платёжное поручение (КЗ)',
     },
     newTemplateContract: 'Новый шаблон договора',
     contractHint: 'Параметры договора и сторон берутся из карточки договора; у составных назначений параметры документа и блок {{Товары}} — из документа.',

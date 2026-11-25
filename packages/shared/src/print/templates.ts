@@ -1,12 +1,14 @@
 /* HTML-шаблоны печатных форм: счёт на оплату, УПД, акт оказания услуг, ТОРГ-12. Чистые функции «данные → HTML-строка»:
    одни и те же страницы показываются в браузере (предпросмотр + window.print) и превращаются в PDF в воркере (headless Chromium).
    Формат A4, поля и разрывы страниц заданы в @page и CSS-правилах break-*; шапка таблицы повторяется на каждой странице. */
+import { renderKzTradeForm } from '../countries/kz/print-forms';
 import { dec, div, fmt, mul } from '../decimal';
 import { DOCUMENT_LABELS_RU, type PrintForm } from '../documents';
 import { amountInWordsRu, numberToWordsRu } from '../ru';
 import type { FileRef } from '../schemas/documents';
 import { qrSvg } from '../qr';
 import { renderQuote } from './quote';
+import { originCountryDetails } from '../origin-country';
 import type { PrintData, PrintLine, PrintOrganization, PrintParty } from './types';
 
 const NBSP = ' ';
@@ -246,13 +248,19 @@ ${basis}
 
 /* ---------------- УПД ---------------- */
 
-function updForm(d: PrintData): string {
+function customsCells(line: PrintLine): string {
+  const origin = originCountryDetails(line.originCountry);
+  return [origin?.code, origin?.name, line.gtdNumber].map(value => `<td class="center">${esc(value || '—')}</td>`).join('');
+}
+
+function updForm(d: PrintData, vatInvoice = false): string {
   const o = d.organization;
   const t = d.totals;
   const status = o.taxSystem === 'osn' ? 1 : 2;
+  const indexes = [...(vatInvoice ? ['1', '1а', '1б'] : ['', '', '1', '1а']), '2', '2а', '3', '4', '5', '6', '7', '8', '9', '10', '10а', '11'];
   const rows = d.lines
     .map(
-      l => `<tr><td class="center">${l.n}</td><td class="center">${esc(l.sku)}</td><td>${esc(l.name)}</td><td class="center"></td><td class="center">${esc(l.unitCode)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${qtyRu(l.qty)}</td><td class="right">${unitNet(l)}</td><td class="right">${moneyRu(l.net)}</td><td class="center">без акциза</td><td class="center">${vatLabel(l.vatRate)}</td><td class="right">${vatSum(l)}</td><td class="right">${moneyRu(l.total)}</td><td class="center">—</td><td class="center">—</td><td class="center">—</td></tr>`,
+      l => `<tr><td class="center">${l.n}</td>${vatInvoice ? '' : `<td class="center">${esc(l.sku)}</td>`}<td>${esc(l.name)}</td><td class="center"></td><td class="center">${esc(l.unitCode)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${qtyRu(l.qty)}</td><td class="right">${unitNet(l)}</td><td class="right">${moneyRu(l.net)}</td><td class="center">без акциза</td><td class="center">${vatLabel(l.vatRate)}</td><td class="right">${vatSum(l)}</td><td class="right">${moneyRu(l.total)}</td>${customsCells(l)}</tr>`,
     )
     .join('');
   const basis = d.basedOn ? `${esc(DOCUMENT_LABELS_RU[d.basedOn.type])}${d.basedOn.number ? ` № ${esc(d.basedOn.number)}` : ''} от ${esc(dateRu(d.basedOn.date))}` : '—';
@@ -260,7 +268,7 @@ function updForm(d: PrintData): string {
   return html(
     d,
     'landscape',
-    `<table class="plain"><tr><td style="width:150px" class="small">Универсальный передаточный документ<br>Статус: <b>${status}</b><br><span class="small">${status === 1 ? '1 — счёт-фактура и передаточный документ (акт)' : '2 — передаточный документ (акт)'}</span></td>
+    `<table class="plain"><tr>${vatInvoice ? '' : `<td style="width:150px" class="small">Универсальный передаточный документ<br>Статус: <b>${status}</b><br><span class="small">${status === 1 ? '1 — счёт-фактура и передаточный документ (акт)' : '2 — передаточный документ (акт)'}</span></td>`}
 <td><h1 style="margin:0">${d.number ? `Счёт-фактура № ${esc(d.number)} от ${esc(dateRu(d.date))}` : `Счёт-фактура (черновик) от ${esc(dateRu(d.date))}`}</h1>
 <div class="small">Исправление № — от —</div></td></tr></table>
 <table class="plain" style="margin-top:4px">
@@ -270,20 +278,21 @@ ${head('Грузополучатель и его адрес:', esc(d.party.fullN
 ${head('К платёжно-расчётному документу №:', '—')}
 ${head('Покупатель:', partyLine(d.party))}
 ${head('Валюта: наименование, код', 'Российский рубль, 643')}
-${head('Основание передачи (сдачи) / получения (приёмки):', basis)}
+${vatInvoice ? '' : head('Основание передачи (сдачи) / получения (приёмки):', basis)}
 </table>
 <table class="grid" style="margin-top:6px"><thead>
-<tr><th rowspan="2" style="width:24px">№ п/п</th><th rowspan="2" style="width:70px">Код товара/ работ, услуг</th><th rowspan="2">Наименование товара (описание выполненных работ, оказанных услуг), имущественного права</th><th rowspan="2" style="width:50px">Код вида товара</th><th colspan="2">Единица измерения</th><th rowspan="2" style="width:50px">Количество (объём)</th><th rowspan="2" style="width:70px">Цена (тариф) за единицу измерения</th><th rowspan="2" style="width:82px">Стоимость товаров без налога — всего</th><th rowspan="2" style="width:50px">В том числе сумма акциза</th><th rowspan="2" style="width:48px">Налоговая ставка</th><th rowspan="2" style="width:72px">Сумма налога, предъявляемая покупателю</th><th rowspan="2" style="width:82px">Стоимость товаров с налогом — всего</th><th colspan="2">Страна происхождения</th><th rowspan="2" style="width:56px">Номер таможенной декларации</th></tr>
+<tr><th rowspan="2" style="width:24px">№ п/п</th>${vatInvoice ? '' : '<th rowspan="2" style="width:70px">Код товара/ работ, услуг</th>'}<th rowspan="2">Наименование товара (описание выполненных работ, оказанных услуг), имущественного права</th><th rowspan="2" style="width:50px">Код вида товара</th><th colspan="2">Единица измерения</th><th rowspan="2" style="width:50px">Количество (объём)</th><th rowspan="2" style="width:70px">Цена (тариф) за единицу измерения</th><th rowspan="2" style="width:82px">Стоимость товаров без налога — всего</th><th rowspan="2" style="width:50px">В том числе сумма акциза</th><th rowspan="2" style="width:48px">Налоговая ставка</th><th rowspan="2" style="width:72px">Сумма налога, предъявляемая покупателю</th><th rowspan="2" style="width:82px">Стоимость товаров с налогом — всего</th><th colspan="2">Страна происхождения</th><th rowspan="2" style="width:56px">Номер таможенной декларации</th></tr>
 <tr><th style="width:40px">код</th><th style="width:40px">усл. обозн.</th><th style="width:40px">цифр. код</th><th style="width:70px">краткое наименование</th></tr>
+<tr>${indexes.map(n => `<th>${n}</th>`).join('')}</tr>
 </thead><tbody>${rows}
-<tr class="bold"><td colspan="8" class="right">Всего к оплате</td><td class="right">${moneyRu(t.net)}</td><td class="center">X</td><td class="center">X</td><td class="right">${d.lines.every(l => l.vatRate === 'none') ? 'без НДС' : moneyRu(t.vat)}</td><td class="right">${moneyRu(t.total)}</td><td colspan="3"></td></tr>
+<tr class="bold"><td colspan="${vatInvoice ? 7 : 8}" class="right">Всего к оплате</td><td class="right">${moneyRu(t.net)}</td><td class="center">X</td><td class="center">X</td><td class="right">${d.lines.every(l => l.vatRate === 'none') ? 'без НДС' : moneyRu(t.vat)}</td><td class="right">${moneyRu(t.total)}</td><td colspan="3"></td></tr>
 </tbody></table>
 <div class="words">Всего к оплате: <b>${esc(amountInWordsRu(t.total))}</b></div>
 <table class="sign plain"><tr>
 <td style="width:50%"><b>Руководитель организации</b> или иное уполномоченное лицо<br><span class="line">${image(o.directorSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.directorName)} /<br><span class="small">(подпись) (ф. и. о.)</span></td>
 <td style="width:50%"><b>Главный бухгалтер</b> или иное уполномоченное лицо<br><span class="line">${image(o.accountantSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.accountantName || o.directorName)} /<br><span class="small">(подпись) (ф. и. о.)</span></td></tr>
-<tr><td><b>Товар (груз) передал</b> / услуги, результаты работ, права сдал<br><span class="line"></span> / ${esc(o.directorName)} /<div style="position:relative;height:0">${image(o.stampFile, 'stamp', 'Печать')}</div><br><span class="small">Дата отгрузки, передачи (сдачи): ${esc(dateRu(d.date))}</span></td>
-<td><b>Товар (груз) получил</b> / услуги, результаты работ, права принял<br><span class="line"></span> / ______________ /<br><span class="small">Дата получения (приёмки): «___» ____________ 20__ г.</span></td></tr></table>`,
+${vatInvoice ? '' : `<tr><td><b>Товар (груз) передал</b> / услуги, результаты работ, права сдал<br><span class="line"></span> / ${esc(o.directorName)} /<div style="position:relative;height:0">${image(o.stampFile, 'stamp', 'Печать')}</div><br><span class="small">Дата отгрузки, передачи (сдачи): ${esc(dateRu(d.date))}</span></td>
+<td><b>Товар (груз) получил</b> / услуги, результаты работ, права принял<br><span class="line"></span> / ______________ /<br><span class="small">Дата получения (приёмки): «___» ____________ 20__ г.</span></td></tr>`}</table>`,
   );
 }
 
@@ -477,7 +486,7 @@ function repairReturnForm(d: PrintData): string {
 }
 
 export function printOrientation(form: PrintForm): 'portrait' | 'landscape' {
-  return form === 'upd' || form === 'torg12' || form === 'torg13' ? 'landscape' : 'portrait';
+  return form === 'upd' || form === 'vat_invoice' || form === 'torg12' || form === 'torg13' || form === 'kz_z2' || form === 'kz_r1' || form === 'kz_tax_invoice' ? 'landscape' : 'portrait';
 }
 
 /* ---------------- ИНВ-3: инвентаризационная опись ---------------- */
@@ -640,6 +649,8 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return actForm(data);
     case 'upd':
       return updForm(data);
+    case 'vat_invoice':
+      return updForm(data, true);
     case 'torg12':
       return torg12Form(data);
     case 'inv3':
@@ -660,6 +671,14 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return repairReceiptForm(data);
     case 'repair_return':
       return repairReturnForm(data);
+    case 'kz_invoice':
+    case 'kz_z2':
+    case 'kz_r1':
+    case 'kz_tax_invoice':
+      return renderKzTradeForm(form, data);
+    case 'kz_pko':
+    case 'kz_rko':
+    case 'kz_payment_order':
     case 'ko1':
     case 'ko2':
     case 'bank_receipt':

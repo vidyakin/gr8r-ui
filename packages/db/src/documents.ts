@@ -3,10 +3,13 @@
    фильтров по workspace_id. Правила проведения и склада описаны в docs/architecture/documents.md и stock.md. */
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { archiveAttachmentsOf } from './attachments';
+import { organizationVatDefaults } from './organizations';
 import {
   canChangeState,
   computeLine,
   computeTotals,
+  getCountryPack,
+  type CountryPack,
   DOCUMENT_META,
   DOCUMENT_OPERATION_CHOICES,
   FLEET_COST_ITEMS,
@@ -44,12 +47,13 @@ import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';
 import { recordEvent } from './events';
 import { counterpartyCodeFor, partnerArticlesFor } from './partner-articles';
+import { assertSameWarehouseTransfer, resolveWarehouseBins } from './warehouse-bins';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
 import { assertObjectRef } from './objects';
 import { documentBudgetWarnings } from './object-budget';
-import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
+import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, stockMoves, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -168,7 +172,7 @@ interface ResolvedLine {
   discountPct: string;
   /** Скидка введена вручную в форме (задача 1179): такую строку автоскидка не трогает */
   discountManual: boolean;
-  vatRate: VatRate;
+  vatRate: string;
   /** Роль строки выпуска (производства): приход или расход */
   stockRole?: 'in' | 'out';
   /** Учётное количество по остаткам (инвентаризация) */
@@ -188,6 +192,10 @@ interface ResolvedLine {
   /** Срок отгрузки строки: undefined — оставить прежний, null — очистить */
   shipBy?: string | null;
   /** Партия строки (задача 1187): номер партии прихода и даты */
+  binId?: string | null;
+  toBinId?: string | null;
+  gtdNumber?: string | null;
+  originCountry?: string | null;
   batchNumber?: string | null;
   batchProducedAt?: string | null;
   batchExpiresAt?: string | null;
@@ -197,7 +205,7 @@ interface ResolvedLine {
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
     У инвентаризации количество строки — фактическое (нулевое значит «товара нет»), у остальных типов оно строго положительно */
-async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<string, { unitCode: string; unitFactor: string; productId: string }>, type: DocumentType): Promise<ResolvedLine[]> {
+async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<string, { unitCode: string; unitFactor: string; productId: string; vatRate: string }>, type: DocumentType, pack: CountryPack, defaultVatRate: string, keepHistoricalVat: boolean): Promise<ResolvedLine[]> {
   const ids = [...new Set(inputs.map(l => l.productId))];
   const rows = ids.length ? await db.select().from(products).where(inArray(products.id, ids)) : [];
   const by = new Map(rows.map(p => [p.id, p]));
@@ -226,6 +234,11 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<s
       qty = base;
     }
     if (type !== 'inventory_count' && dec(qty) <= 0n) throw new DomainError(422, 'invalid_qty', `"${p.name}": the quantity must be greater than zero`);
+    const historicalVat = keepHistoricalVat && prev?.productId === p.id ? prev.vatRate : undefined;
+    if (l.vatRate !== undefined && !pack.vatRates.includes(l.vatRate) && l.vatRate !== historicalVat) {
+      throw new DomainError(422, 'invalid_vat_rate', 'VAT rate is unavailable for this organization');
+    }
+    const vatRate = l.vatRate ?? (pack.vatRates.includes(p.vatRate) ? p.vatRate : historicalVat ?? defaultVatRate);
     return {
       id,
       productId: p.id,
@@ -237,7 +250,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<s
       // discountManual: false — вернуть строку автоскидке: ручной процент сбрасывается
       discountPct: l.discountManual === false ? '0' : (l.discountPct ?? '0'),
       discountManual: l.discountManual ?? false,
-      vatRate: (l.vatRate ?? p.vatRate) as VatRate,
+      vatRate,
       stockRole: l.stockRole,
       bookQty: l.bookQty ?? '0',
       receivedQty: l.receivedQty ?? (type === 'stock_transfer' ? qty : '0'),
@@ -247,6 +260,10 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<s
       params: l.params ?? {},
       groupName: l.groupName,
       shipBy: l.shipBy,
+      binId: l.binId,
+      toBinId: l.toBinId,
+      gtdNumber: l.gtdNumber,
+      originCountry: l.originCountry,
       batchNumber: l.batchNumber === undefined ? undefined : l.batchNumber?.trim() || null,
       batchProducedAt: l.batchProducedAt,
       batchExpiresAt: l.batchExpiresAt,
@@ -310,14 +327,15 @@ export async function assertProcessingOrder(db: Db, id: string): Promise<Documen
 
 /** Строки документа заменяются списком: существующие (по id) обновляются, новые добавляются, отсутствующие удаляются.
     Ссылки «на основании» у потомков остаются на сохранённых строках */
-async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: DocumentLineInput[], includesVat: boolean): Promise<void> {
+async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: DocumentLineInput[], includesVat: boolean, keepHistoricalVat = true): Promise<void> {
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, productId: documentLines.productId, unitCode: documentLines.unitCode, unitFactor: documentLines.unitFactor, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, shipBy: documentLines.shipBy, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt, productionComponentId: documentLines.productionComponentId })
+    .select({ binId: documentLines.binId, toBinId: documentLines.toBinId, id: documentLines.id, productId: documentLines.productId, vatRate: documentLines.vatRate, unitCode: documentLines.unitCode, unitFactor: documentLines.unitFactor, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, shipBy: documentLines.shipBy, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt, productionComponentId: documentLines.productionComponentId })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
+  const prevLine = new Map(existing.map(e => [e.id, e]));
   const prevPrice = new Map(existing.map(e => [e.id, e.price]));
   const prevDiscount = new Map(existing.map(e => [e.id, e.discountPct]));
   const prevRole = new Map(existing.map(e => [e.id, e.stockRole]));
@@ -329,7 +347,13 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevBatchProduced = new Map(existing.map(e => [e.id, e.batchProducedAt]));
   const prevBatchExpires = new Map(existing.map(e => [e.id, e.batchExpiresAt]));
   const prevComponent = new Map(existing.map(e => [e.id, e.productionComponentId]));
-  const resolved = await resolveLines(db, inputs, new Map(existing.map(e => [e.id, e])), type);
+  const { pack, defaultVatRate } = await organizationVatDefaults(db, doc.organizationId);
+  const resolved = await resolveLines(db, inputs, prevLine, type, pack, defaultVatRate, keepHistoricalVat);
+  const selectedBins = resolved.flatMap(l => [
+    ...(l.binId && doc.warehouseId ? [{ warehouseId: doc.warehouseId, binId: l.binId }] : []),
+    ...(l.toBinId && doc.targetWarehouseId && type === 'stock_transfer' ? [{ warehouseId: doc.targetWarehouseId, binId: l.toBinId }] : []),
+  ]);
+  const { binIds: enabledBins } = await resolveWarehouseBins(db, ctx.workspaceId, selectedBins);
   // заказ покупателя: комбинация значений параметров с флажком «разрез склада» даёт вариант товара.
   // Вариант создаётся лениво (первый заказ комбинации) и заменяет товар в строке: склад, резервы и документы работают по нему
   if (type === 'customer_order') await resolveLineVariants(db, ctx, resolved);
@@ -366,6 +390,10 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       // срок отгрузки: undefined — прежний, null — очистить
       shipBy: l.shipBy === undefined ? prevShipBy.get(l.id) ?? null : l.shipBy,
       // партия строки (задача 1187): номер партии и даты — клиент не знающий партий, их не сбрасывает
+      binId: l.binId === undefined ? prevLine.get(l.id)?.binId ?? null : l.binId && enabledBins.has(`${doc.warehouseId}:${l.binId}`) ? l.binId : null,
+      toBinId: l.toBinId === undefined ? prevLine.get(l.id)?.toBinId ?? null : l.toBinId && enabledBins.has(`${doc.targetWarehouseId}:${l.toBinId}`) ? l.toBinId : null,
+      gtdNumber: l.gtdNumber,
+      originCountry: l.originCountry,
       batchNumber: l.batchNumber === undefined ? prevBatch.get(l.id) ?? null : l.batchNumber,
       batchProducedAt: l.batchProducedAt === undefined ? prevBatchProduced.get(l.id) ?? null : l.batchProducedAt,
       batchExpiresAt: l.batchExpiresAt === undefined ? prevBatchExpires.get(l.id) ?? null : l.batchExpiresAt,
@@ -545,6 +573,7 @@ export interface DocumentCreateInput {
   /** Заказ на переработку (приём, отчёт о переработке и возврат): по нему берётся давалец */
   tollingOrderId?: string | null;
   organizationId?: string | null;
+  currency?: string;
   counterpartyId?: string | null;
   /** Договор: пусто — договор по умолчанию контрагента (если он есть) */
   contractId?: string | null;
@@ -633,12 +662,17 @@ async function resolveDeal(db: Db, dealId: string, partyType: boolean, counterpa
 
 export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateInput): Promise<string> {
   const meta = DOCUMENT_META[input.type];
-  let organizationId = input.organizationId ?? null;
-  if (!organizationId) {
-    const [o] = await db.select({ id: organizations.id }).from(organizations).where(isNull(organizations.archivedAt)).orderBy(desc(organizations.isDefault), asc(organizations.createdAt)).limit(1);
-    if (!o) throw new DomainError(422, 'organization_required', 'Add an organization in Settings → Organizations first');
-    organizationId = o.id;
+  const [organization] = await db
+    .select({ id: organizations.id, country: organizations.country, archivedAt: organizations.archivedAt })
+    .from(organizations)
+    .where(input.organizationId ? eq(organizations.id, input.organizationId) : isNull(organizations.archivedAt))
+    .orderBy(desc(organizations.isDefault), asc(organizations.createdAt))
+    .limit(1);
+  if (!organization || organization.archivedAt) {
+    if (input.organizationId) throw new DomainError(422, 'invalid_reference', 'Organization does not exist or is archived');
+    throw new DomainError(422, 'organization_required', 'Add an organization in Settings → Organizations first');
   }
+  const organizationId = organization.id;
   let warehouseId = input.warehouseId ?? null;
   if (input.warehouseId === undefined && (meta.stock || meta.reserves || meta.stockRole)) {
     const [w] = await db.select({ id: warehouses.id }).from(warehouses).where(isNull(warehouses.archivedAt)).orderBy(desc(warehouses.isDefault), asc(warehouses.createdAt)).limit(1);
@@ -677,9 +711,9 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       contractId = contract?.id ?? null;
     }
   }
-  await assertRefs(db, { organizationId, counterpartyId, warehouseId, targetWarehouseId, costItemId, workCenterId, responsibleId: input.responsibleId });
+  await assertRefs(db, { counterpartyId, warehouseId, targetWarehouseId, costItemId, workCenterId, responsibleId: input.responsibleId });
   const attribution = ATTRIBUTION_TYPES.includes(input.type) ? await newDocAttribution(db, ctx, input, dealId, counterpartyId) : null;
-  if (needsTargetWarehouse(operation) && (!targetWarehouseId || targetWarehouseId === warehouseId)) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
+  if (needsTargetWarehouse(operation)) await assertSameWarehouseTransfer(db, ctx.workspaceId, operation, warehouseId, targetWarehouseId);
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
   if (costItemId) await assertCostItemKind(db, input.type, costItemId, operation === 'to_operation' ? 'expense' : undefined);
   const [row] = await db
@@ -693,6 +727,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       state: null,
       operation,
       organizationId,
+      currency: input.currency ?? getCountryPack(organization.country).currency,
       counterpartyId,
       dealId,
       contractId,
@@ -726,6 +761,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
 
 export interface DocumentPatch {
   organizationId?: string | null;
+  currency?: string;
   /** Вид заказ-наряда (только у work_order) */
   workOrderKindId?: string | null;
   /** Заказ на переработку (приём, отчёт о переработке, возврат) */
@@ -793,14 +829,27 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   const inUseMemberId = patch.inUseMemberId !== undefined ? patch.inUseMemberId : doc.inUseMemberId;
   const inUseWorkCenterId = patch.inUseWorkCenterId !== undefined ? patch.inUseWorkCenterId : doc.inUseWorkCenterId;
   if (patch.costItemId) await assertCostItemKind(db, type, patch.costItemId, operation === 'to_operation' ? 'expense' : undefined);
-  const targetWarehouseId = meta.stockRole === 'transfer' ? (needsTargetWarehouse(operation) ? patch.targetWarehouseId ?? doc.targetWarehouseId : null) : doc.targetWarehouseId;
-  if (needsTargetWarehouse(operation)) {
-    const wh = patch.warehouseId ?? doc.warehouseId;
-    if (!targetWarehouseId || targetWarehouseId === wh) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
-  }
+  const targetWarehouseId = meta.stockRole === 'transfer' ? (needsTargetWarehouse(operation) ? (patch.targetWarehouseId === undefined ? doc.targetWarehouseId : patch.targetWarehouseId) : null) : doc.targetWarehouseId;
+  if (needsTargetWarehouse(operation)) await assertSameWarehouseTransfer(db, ctx.workspaceId, operation, patch.warehouseId === undefined ? doc.warehouseId : patch.warehouseId, targetWarehouseId);
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
   const set: Partial<typeof documents.$inferInsert> = { updatedAt: new Date() };
   if (patch.organizationId) set.organizationId = patch.organizationId;
+  if (patch.currency !== undefined) set.currency = patch.currency;
+  let countryChanged = false;
+  if (orgChanged && patch.organizationId) {
+    const orgs = await db.select({ id: organizations.id, country: organizations.country })
+      .from(organizations).where(inArray(organizations.id, [doc.organizationId, patch.organizationId]));
+    const previous = getCountryPack(orgs.find(org => org.id === doc.organizationId)?.country);
+    const next = getCountryPack(orgs.find(org => org.id === patch.organizationId)?.country);
+    countryChanged = previous.code !== next.code;
+    if (countryChanged) {
+      const lines = await db.select({ vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, id));
+      if (!patch.lines && lines.some(line => !next.vatRates.includes(line.vatRate))) {
+        throw new DomainError(422, 'invalid_vat_rate', 'Update the line VAT rates when changing the organization');
+      }
+      if (patch.currency === undefined && !lines.length && doc.currency === previous.currency) set.currency = next.currency;
+    }
+  }
   if (patch.counterpartyId !== undefined) set.counterpartyId = meta.party === null ? null : patch.counterpartyId;
   if (patch.priceKindId !== undefined && meta.party !== null) set.priceKindId = patch.priceKindId;
   if (patch.contractId !== undefined && meta.party !== null) {
@@ -861,8 +910,14 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   }
   if (patch.custom) set.custom = { ...doc.custom, ...patch.custom };
   const [after] = await db.update(documents).set(set).where(eq(documents.id, id)).returning();
+  if (doc.warehouseId !== after!.warehouseId || doc.targetWarehouseId !== after!.targetWarehouseId) {
+    await db.update(documentLines).set({
+      ...(doc.warehouseId !== after!.warehouseId ? { binId: null } : {}),
+      ...(doc.targetWarehouseId !== after!.targetWarehouseId ? { toBinId: null } : {}),
+    }).where(eq(documentLines.documentId, id));
+  }
   if (patch.lines) {
-    await saveLines(db, ctx, after!, patch.lines, after!.priceIncludesVat);
+    await saveLines(db, ctx, after!, patch.lines, after!.priceIncludesVat, !countryChanged);
     // ресурсы строк-работ заказ-наряда подставляются из норматива работ
     if (type === 'work_order') await syncWorkOrderResources(db, ctx, id);
   } else if (patch.priceIncludesVat !== undefined && patch.priceIncludesVat !== doc.priceIncludesVat) await recalcLines(db, after!);
@@ -1062,7 +1117,6 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<str
   // возврат из эксплуатации склад не меняет — склад ему не нужен
   const needsWarehouse = meta.stock || (meta.stockRole && doc.operation !== 'from_operation');
   if (goods.length && needsWarehouse && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse before posting');
-  if (meta.stockRole === 'transfer' && needsTargetWarehouse(doc.operation) && goods.length && (!doc.targetWarehouseId || doc.targetWarehouseId === doc.warehouseId)) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
   if (meta.costItemKind) {
     if (!doc.costItemId) throw new DomainError(422, 'cost_item_required', meta.costItemKind === 'expense' ? 'Select an expense cost item before posting' : 'Select an income cost item before posting');
     await assertCostItemKind(db, type, doc.costItemId);
@@ -1121,7 +1175,11 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
   }
   const reqs: MoveRequest[] = plan.map(m => {
     const l = byLine.get(m.lineId)!;
-    const req: MoveRequest = { warehouseId: m.warehouseId, productId: m.productId, lineId: m.lineId, qty: dec(m.qty), direction: m.direction };
+    const req: MoveRequest = {
+      warehouseId: m.warehouseId, productId: m.productId, lineId: m.lineId, qty: dec(m.qty), direction: m.direction,
+      binId: type === 'stock_transfer' && m.direction === 'in' ? l.toBinId : l.binId,
+      gtdNumber: l.gtdNumber, originCountry: l.originCountry,
+    };
     if (m.transfer) req.transfer = true; // расход в составе перемещения (карантин снимается перемещением)
     if (qualityExit && m.direction === 'out') req.qualityExit = true;
     if (type === 'receipt') req.cost = div(dec(org?.taxSystem === 'usn' ? l.total : l.net), dec(l.qty)); // при УСН входной НДС входит в себестоимость
@@ -1234,7 +1292,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
       }
     }
     if (qty <= 0n) continue;
-    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName, shipBy: l.shipBy });
+    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName, shipBy: l.shipBy, gtdNumber: l.gtdNumber, originCountry: l.originCountry });
     meta.push({ source: l.id, origin: isOrder ? l.id : l.originLineId });
   }
   if (!newLines.length && cutOff) throw new DomainError(422, 'nothing_by_ship_date', 'No order line has a shipping date up to the chosen date');
@@ -1243,6 +1301,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
   const id = await createDocument(db, ctx, {
     type: target,
     organizationId: src.organizationId,
+    currency: src.currency,
     counterpartyId: src.counterpartyId,
     // документ на основании остаётся в той же сделке
     dealId: src.dealId,
@@ -1314,7 +1373,7 @@ async function documentLoyaltyView(db: Db, id: string) {
 export async function documentDetail(db: Db, id: string) {
   const doc = await loadDoc(db, id);
   const type = doc.type as DocumentType;
-  const [org] = await db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
+  const [org] = await db.select({ id: organizations.id, name: organizations.name, country: organizations.country, defaultVatRate: organizations.defaultVatRate }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
   const [cp] = doc.counterpartyId ? await db.select({ id: companies.id, name: companies.name, inn: companies.inn }).from(companies).where(eq(companies.id, doc.counterpartyId)).limit(1) : [];
   const [wh] = doc.warehouseId ? await db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses).where(eq(warehouses.id, doc.warehouseId)).limit(1) : [];
   const [contract] = doc.contractId ? await db.select({ id: contracts.id, number: contracts.number, companyId: contracts.companyId, companyName: companies.name, validFrom: contracts.validFrom, validTo: contracts.validTo, isService: contracts.isService }).from(contracts).innerJoin(companies, eq(companies.id, contracts.companyId)).where(eq(contracts.id, doc.contractId)).limit(1) : [];
@@ -1357,6 +1416,19 @@ export async function documentDetail(db: Db, id: string) {
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
   const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, unitQty: unitQtyOf(r.line.qty, r.line.unitFactor), sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null, partnerArticle: '', partnerName: '' }));
+  if (type === 'realization' && doc.status === 'posted') {
+    const customs = await db.select({
+      lineId: stockMoves.documentLineId,
+      gtdNumber: sql<string | null>`case when count(*) = count(${stockMoves.gtdNumber}) and min(${stockMoves.gtdNumber}) = max(${stockMoves.gtdNumber}) then min(${stockMoves.gtdNumber}) end`,
+      originCountry: sql<string | null>`case when count(*) = count(${stockMoves.originCountry}) and min(${stockMoves.originCountry}) = max(${stockMoves.originCountry}) then min(${stockMoves.originCountry}) end`,
+    }).from(stockMoves).where(and(eq(stockMoves.documentId, id), sql`${stockMoves.qty} < 0`)).groupBy(stockMoves.documentLineId);
+    const byLine = new Map(customs.map(row => [row.lineId, row]));
+    for (const line of lines) {
+      const trace = byLine.get(line.id);
+      line.gtdNumber ??= trace?.gtdNumber ?? null;
+      line.originCountry ??= trace?.originCountry ?? null;
+    }
+  }
   // номенклатура контрагента: артикул и наименование товара у контрагента документа
   const partner = await partnerArticlesFor(db, doc.counterpartyId, lines.map(l => l.productId));
   for (const l of lines) {
@@ -1467,7 +1539,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
   // картинка товара для КП с картинками (задача 1192): относительный URL, инлайнится при рендере PDF
   const imageBy = new Map(warrantyRows.map(w => [w.id, w.img ? `/api/attachments/${w.img}/content?thumb=256` : '']));
   const party: PrintParty = co
-    ? { name: co.name, fullName: co.name, inn: co.inn, kpp: co.kpp, ogrn: co.ogrn, address: co.legalAddress || co.city, phone: '', bank: await defaultBank(db, { companyId: co.id }) }
+    ? { name: co.name, fullName: co.name, inn: co.inn, kpp: co.kpp, ogrn: co.ogrn, address: co.legalAddress || co.city, requisites: co.requisites, phone: '', bank: await defaultBank(db, { companyId: co.id }) }
     : { name: '', fullName: '', inn: '', kpp: '', ogrn: '', address: '', phone: '', bank: null };
   const data: PrintData = {
     type: d.type as DocumentType,
@@ -1475,12 +1547,14 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
     date: d.date,
     dueDate: d.dueDate,
     priceIncludesVat: d.priceIncludesVat,
+    currency: d.currency,
     organization: {
       name: org.name,
       fullName: org.fullName || org.name,
       inn: org.inn,
       kpp: org.kpp,
       ogrn: org.ogrn,
+      requisites: org.requisites,
       address: org.legalAddress,
       phone: org.phone,
       bank: await defaultBank(db, { organizationId: org.id }),
@@ -1498,6 +1572,8 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       n: i + 1,
       sku: l.sku,
       name: l.name,
+      gtdNumber: l.gtdNumber,
+      originCountry: l.originCountry,
       unitCode: l.unitCode,
       unitSymbol: symbol.get(l.unitCode) ?? l.unitCode,
       // печать — в единице строки (упаковке), цена за неё же

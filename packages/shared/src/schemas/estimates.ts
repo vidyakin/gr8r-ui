@@ -1,7 +1,7 @@
 /* Смета объекта (задача 1269): тела запросов API. Разделы и позиции сохраняются пакетом целиком
    (как строки документа): существующие позиции по id обновляются, остальные добавляются, пропавшие удаляются. */
 import { z } from 'zod';
-import { VAT_RATES } from '../constants';
+import { countryVatRate } from './countries';
 import { ESTIMATE_ITEM_KINDS } from '../estimates';
 import { clientId, decimal, isoDate, shortText, uuid } from './common';
 
@@ -22,7 +22,7 @@ export const estimateItemInput = z.object({
   qty: decimal,
   /** Цена заказчику без НДС */
   price: decimal,
-  vatRate: z.enum(VAT_RATES).default('20'),
+  vatRate: countryVatRate.optional(),
   /** Плановая внутренняя стоимость единицы */
   costPrice: decimal.default('0'),
   /** Норма часов на единицу (для работ) */

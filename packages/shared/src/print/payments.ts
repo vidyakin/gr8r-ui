@@ -1,5 +1,6 @@
 /* Печатные формы денег (задача 1174б): приходный (КО-1) и расходный (КО-2) кассовые ордера и акт сверки взаиморасчётов.
    Чистые функции «данные → HTML», по-русски, без перевода. Страница A4 портрет. */
+import { renderKzCashOrder, renderKzPaymentOrder } from '../countries/kz/print-forms';
 import { dec, fmt } from '../decimal';
 import { amountInWordsRu } from '../ru';
 import { BASE_CSS, dateRu, esc, moneyRu } from './templates';
@@ -16,7 +17,8 @@ ${BASE_CSS}
 <body><div class="sheet">${draft ? '<div class="draft">ЧЕРНОВИК</div>' : ''}${body}</div></body></html>`;
 
 export interface CashOrderData {
-  form: 'ko1' | 'ko2';
+  form: 'ko1' | 'ko2' | 'kz_pko' | 'kz_rko';
+  currency?: string;
   /** null — документ не проведён */
   number: string | null;
   date: string;
@@ -24,12 +26,14 @@ export interface CashOrderData {
   cashRegisterName: string;
   /** Принято от / выдать: контрагент или подотчётное лицо */
   personName: string;
+  party?: PrintPartyRef | null;
   /** Основание (документы расчётов, комментарий) */
   basis: string;
   amount: string;
 }
 
 export function renderCashOrder(d: CashOrderData): string {
+  if (d.form === 'kz_pko' || d.form === 'kz_rko') return renderKzCashOrder(d);
   const o = d.organization;
   const receipt = d.form === 'ko1';
   const title = receipt ? 'Приходный кассовый ордер' : 'Расходный кассовый ордер';
@@ -126,6 +130,7 @@ export interface PrintBankRef {
 }
 export interface PrintPartyRef {
   name: string;
+  requisites?: import('../countries').CountryRequisites;
   inn: string;
   kpp: string;
 }
@@ -177,7 +182,8 @@ ${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
 
 /** Платёжное поручение (форма 0401060) по документу «Списание с расчётного счёта» */
 export interface PaymentOrderData {
-  form: 'payment_order';
+  form: 'payment_order' | 'kz_payment_order';
+  currency?: string;
   number: string | null;
   date: string;
   organization: PrintOrganization;
@@ -192,6 +198,7 @@ export interface PaymentOrderData {
 }
 
 export function renderPaymentOrder(d: PaymentOrderData): string {
+  if (d.form === 'kz_payment_order') return renderKzPaymentOrder(d);
   const o = d.organization;
   const pb = d.payerBank;
   const rb = d.payeeBank;
@@ -297,18 +304,21 @@ ${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
 }
 
 export type MoneyFormData = CashOrderData | BankReceiptData | PaymentOrderData | AdvanceReportData | OpeningBalanceData;
-export const MONEY_FORMS: readonly string[] = ['ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance'];
+export const MONEY_FORMS: readonly string[] = ['ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance', 'kz_pko', 'kz_rko', 'kz_payment_order'];
 export const isMoneyForm = (f: string): boolean => MONEY_FORMS.includes(f);
 
 /** Страница денежной печатной формы по готовым данным */
 export function renderMoneyForm(d: MoneyFormData): string {
   switch (d.form) {
+    case 'kz_pko':
+    case 'kz_rko':
     case 'ko1':
     case 'ko2':
       return renderCashOrder(d);
     case 'bank_receipt':
       return renderBankReceipt(d);
     case 'payment_order':
+    case 'kz_payment_order':
       return renderPaymentOrder(d);
     case 'advance_report':
       return renderAdvanceReport(d);

@@ -1,5 +1,6 @@
 /* CRM: компании, контакты, сделки, активности. Деньги — numeric(18,2) (строки в JSON). */
 import { sql } from 'drizzle-orm';
+import { COUNTRY_CODES, type CountryRequisites } from '@erp/shared';
 import { boolean, check, date, doublePrecision, foreignKey, index, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { adCampaigns, leadSources } from './ad';
@@ -20,6 +21,8 @@ export const companies = pgTable(
     city: text('city').notNull().default(''),
     /** Реквизиты (Россия): тип контрагента, ИНН (проверяется контрольная сумма), КПП, ОГРН/ОГРНИП, адреса. Банковские счета — таблица bank_accounts */
     kind: text('kind', { enum: ['legal', 'sole_proprietor', 'individual'] }).notNull().default('legal'),
+    country: text('country', { enum: COUNTRY_CODES }).notNull().default('RU'),
+    requisites: jsonb('requisites').$type<CountryRequisites>().notNull().default({}),
     inn: text('inn').notNull().default(''),
     kpp: text('kpp').notNull().default(''),
     ogrn: text('ogrn').notNull().default(''),
@@ -48,6 +51,7 @@ export const companies = pgTable(
   },
   t => [
     unique('companies_ws_id_uq').on(t.workspaceId, t.id),
+    check('companies_country_chk', sql`${t.country} IN ('RU', 'KZ', 'AE')`),
     check('companies_settlement_mode_chk', sql`${t.settlementMode} in ('by_documents','by_counterparty')`),
     check('companies_kind_chk', sql`${t.kind} in ('legal','sole_proprietor','individual')`),
     foreignKey({ columns: [t.workspaceId, t.ownerId], foreignColumns: [members.workspaceId, members.id], name: 'companies_owner_fk' }),

@@ -198,7 +198,7 @@ export const catalog: Widen<typeof C> = {
 
 /** Etiquetas de valores de @erp/shared: se traducen por valor */
 export const enums: Widen<typeof E> = {
-  vat: { none: 'Sin IVA' },
+  vat: { none: 'Sin IVA', exempt: 'Exento de IVA' },
   /** Periodicidad de facturación por contrato (mes / trimestre / año) */
   periodicity: { month: 'Mensual', quarter: 'Trimestral', year: 'Anual' },
   replenishment: { purchase: 'Compra', production: 'Producción', transfer: 'Traslado' },
@@ -225,6 +225,7 @@ export const enums: Widen<typeof E> = {
   printForm: {
     quote: 'Presupuesto comercial',
     invoice: 'Factura de pago',
+    vat_invoice: "Factura fiscal",
     upd: 'UPD',
     act: 'Acta de servicios',
     torg12: 'TORG-12',

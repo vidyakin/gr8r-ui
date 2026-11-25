@@ -16,9 +16,10 @@ interface EventEnvelope {
   actorId: string | null;
 }
 
-export function useRealtime(ws: string, engine: Engine) {
+export function useRealtime(ws: string, engine: Engine, enabled = true) {
   const qc = useQueryClient();
   React.useEffect(() => {
+    if (!enabled) return;
     let closed = false;
     let sock: WebSocket | null = null;
     let retry = 0;
@@ -36,6 +37,10 @@ export function useRealtime(ws: string, engine: Engine) {
       if (seen.size > 2000) seen.delete(seen.values().next().value!);
       if (e.id > since) since = e.id;
       engine.refresh(collectionsFor(e.entity));
+      if (e.entity === 'workspace_security') {
+        engine.refresh(['members']);
+        batch.add(['ws', ws, 'security']);
+      }
       // Конструктор сущностей: метаданные и записи пользовательских сущностей живут в отдельных запросах
       if (e.entity === 'entity' || e.entity === 'field') batch.add(['ws', ws, 'meta']);
       if (e.entity === 'field' || e.entity === 'position' || e.type.startsWith('member.')) {
@@ -49,7 +54,7 @@ export function useRealtime(ws: string, engine: Engine) {
       if (['unit', 'product_category', 'attribute_def', 'product'].includes(e.entity)) batch.add(['ws', ws, 'catalog']);
       if (['work_center', 'defect_reason', 'manufactured_item', 'bom_line', 'product', 'workspace'].includes(e.entity)) batch.add(['ws', ws, 'production']);
       // Документы, организации, склады, счета, остатки: запросы ['ws', id, 'docs', …]; проведение меняет и среднюю себестоимость в производстве
-      if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit', 'cost_item', 'deal', 'sales_plan_scenario', 'appointment', 'specialist_schedule', 'contact', 'delivery', 'delivery_method', 'position', 'product_kind', 'cash_register', 'cash_flow_item', 'price_kind', 'price_list_link', 'discount_rule', 'promo_code', 'loyalty_card', 'loyalty_program', 'counterparty_code', 'product_partner_article'].includes(e.entity)) batch.add(['ws', ws, 'docs']);
+      if (['document', 'organization', 'warehouse', 'warehouse_bin', 'bank_account', 'product', 'company', 'unit', 'cost_item', 'deal', 'sales_plan_scenario', 'appointment', 'specialist_schedule', 'contact', 'delivery', 'delivery_method', 'position', 'product_kind', 'cash_register', 'cash_flow_item', 'price_kind', 'price_list_link', 'discount_rule', 'promo_code', 'loyalty_card', 'loyalty_program', 'counterparty_code', 'product_partner_article'].includes(e.entity)) batch.add(['ws', ws, 'docs']);
       if (e.entity === 'document') batch.add(['ws', ws, 'production']);
       // План производства: карточка, потребности, журнал и «Заказы по плану» — ['ws', id, 'production-plans', …]
       if (e.entity === 'production_plan' || e.entity === 'document') batch.add(['ws', ws, 'production-plans']);
@@ -104,6 +109,7 @@ export function useRealtime(ws: string, engine: Engine) {
       }
       // Лицензия (задача 1205): набор модулей изменился — перечитываем всё, что принадлежит воркспейсу (раздел мог появиться или пропасть)
       if (e.entity === 'attachment') batch.add(['ws', ws, 'attachments']);
+      if (e.entity === 'supplier_portal_link') batch.add(['ws', ws, 'supplier-portal']);
       if (e.entity === 'license') batch.add(['ws', ws]);
       if (e.entity === 'position' || e.entity === 'product_kind') batch.add(['ws', ws, 'catalog']);
       if (e.entity === 'secret') batch.add(['ws', ws, 'secrets']);
@@ -177,5 +183,5 @@ export function useRealtime(ws: string, engine: Engine) {
       clearInterval(pingTimer);
       sock?.close();
     };
-  }, [ws, engine, qc]);
+  }, [ws, engine, qc, enabled]);
 }

@@ -11,6 +11,7 @@ export interface PrintBank {
 
 export interface PrintParty {
   name: string;
+  requisites?: import('../countries').CountryRequisites;
   fullName: string;
   inn: string;
   kpp: string;
@@ -25,7 +26,7 @@ export interface PrintOrganization extends PrintParty {
   directorName: string;
   directorTitle: string;
   accountantName: string;
-  taxSystem: 'osn' | 'usn';
+  taxSystem: import('../countries').CountryTaxSystem;
   stampFile: FileRef;
   directorSignatureFile: FileRef;
   accountantSignatureFile: FileRef;
@@ -33,6 +34,8 @@ export interface PrintOrganization extends PrintParty {
 
 export interface PrintLine {
   n: number;
+  gtdNumber?: string | null;
+  originCountry?: string | null;
   sku: string;
   name: string;
   /** Код ОКЕИ и обозначение единицы */
@@ -108,6 +111,7 @@ export interface PrintData {
   date: string;
   dueDate: string | null;
   priceIncludesVat: boolean;
+  currency?: string;
   organization: PrintOrganization;
   party: PrintParty;
   lines: PrintLine[];

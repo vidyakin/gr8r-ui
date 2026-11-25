@@ -3,8 +3,8 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { accessFromLicense, drizzleOf, withSeparateNumbering, isUuid, memberSections, readMyLicense, memberships, members, sessions, setContext, users, type Tx } from '@erp/db';
-import { ROLES, TOKEN_PATH_SECTIONS, isTokenPostingRequest, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@erp/shared';
+import { accessFromLicense, auditBlockedIp, drizzleOf, withSeparateNumbering, isUuid, memberSections, readMyLicense, memberships, members, sessions, setContext, users, workspaceSecurity, type Db, type Tx } from '@erp/db';
+import { ROLES, TOKEN_PATH_SECTIONS, isTokenPostingRequest, isIpAllowed, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@erp/shared';
 import { INTERNAL_HEADER, INTERNAL_SECRET, hitTokenRate } from './token-rate';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
 import type { AppEnv, ModuleAccessSets } from './types';
@@ -23,7 +23,8 @@ export const requestLogger = createMiddleware<AppEnv>(async (c, next) => {
   if (c.get('config').logRequests) {
     const ms = (performance.now() - t0).toFixed(1);
     const user = c.get('user')?.id.slice(0, 8) ?? '-';
-    console.log(JSON.stringify({ t: new Date().toISOString(), id: requestId, method: c.req.method, path: c.req.path, status: c.res.status, ms: Number(ms), user }));
+    const path = c.req.path.replace(/^\/public\/supplier\/[^/]+/, '/public/supplier/[redacted]');
+    console.log(JSON.stringify({ t: new Date().toISOString(), id: requestId, method: c.req.method, path, status: c.res.status, ms: Number(ms), user }));
   }
 });
 
@@ -120,11 +121,29 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
       (c.req.method === 'GET' && c.req.path === '/auth/me') ||
       c.req.path === '/mcp' ||
       c.req.path.startsWith('/v1/') ||
-      (moduleOfApiPath(c.req.path) !== null && tokenApiRoot(c.req.path) !== '/api-tokens');
+      (moduleOfApiPath(c.req.path) !== null && !['/api-tokens', '/security'].includes(tokenApiRoot(c.req.path)));
     if (!allowed) throw new AppError(403, 'token_forbidden', 'The access token cannot use this endpoint');
   }
   await next();
 });
+
+/** A blocked request commits its audit row before the caller sends the error. */
+export async function workspaceAccessError(c: Context<AppEnv>, db: Db, workspaceId: string): Promise<AppError | null> {
+  const { ipAllowlist, require2fa } = await workspaceSecurity(db, workspaceId);
+  const { id: userId, email } = c.get('user');
+  const ip = c.get('ip');
+  if (!isIpAllowed(ip, ipAllowlist)) {
+    await auditBlockedIp(db, workspaceId, c.get('sessionId'), {
+      userId, email, ip, userAgent: c.req.header('user-agent')?.slice(0, 300) ?? null,
+    });
+    return new AppError(403, 'ip_blocked', 'This IP address is not allowed in this workspace');
+  }
+  if (require2fa && !c.req.path.startsWith('/auth/')) {
+    const [user] = await db.select({ enabled: users.totpEnabled }).from(users).where(eq(users.id, userId));
+    if (!user?.enabled) return new AppError(403, 'totp_required', 'Set up two-factor authentication to access this workspace');
+  }
+  return null;
+}
 
 /* Транзакция, которая перестаёт принимать запросы после закрытия. После дедлайна postgres.js откатывает транзакцию
    и возвращает соединение в пул, а зависший обработчик держит ссылку на tx: без этой обёртки его поздние запросы
@@ -165,6 +184,7 @@ export const tenant = (source: 'header' | 'param' | 'token' = 'header') =>
     const wsId = raw.toLowerCase();
     const user = c.get('user');
     let accessChanged = false;
+    let blocked: AppError | null = null;
     try {
       await c.get('sql').begin(async raw => {
         let open = true;
@@ -182,6 +202,7 @@ export const tenant = (source: 'header' | 'param' | 'token' = 'header') =>
     } catch (e) {
       if (!(e instanceof Rollback)) throw e;
     }
+    if (blocked) throw blocked;
     if (accessChanged) c.get('accessCache').invalidate(wsId);
 
     async function inTx(t: Tx) {
@@ -205,6 +226,8 @@ export const tenant = (source: 'header' | 'param' | 'token' = 'header') =>
       }
       if (me.status === 'deactivated') throw forbidden('Your membership in this workspace is deactivated');
       if (apiToken && me.memberId !== apiToken.memberId) throw new AppError(403, 'token_forbidden', 'The token member does not match this session');
+      blocked = await workspaceAccessError(c, db, wsId);
+      if (blocked) return;
       // Ограничения токена агента (docs/architecture/agent-tokens.md): только чтение и разделы
       if (apiToken) {
         if (apiToken.readOnly && !SAFE_METHODS.has(c.req.method)) throw new AppError(403, 'token_read_only', 'The access token is read-only');

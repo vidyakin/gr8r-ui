@@ -17,8 +17,11 @@
  */
 import { EVENTS_CHANNEL, listenChannel, type EventEnvelope } from '@erp/db';
 
+import type { SessionRevoke } from './session-cache';
+
 interface Socket {
   send(data: string): void;
+  close?(code?: number, reason?: string): void;
 }
 
 const WINDOW_MS = 100;
@@ -49,6 +52,7 @@ export const eventMessage = (c: { event: EventEnvelope; count: number }, extra?:
   JSON.stringify({ type: 'event', event: c.event, ...(c.count > 1 ? { coalesced: c.count } : {}), ...extra });
 
 export class Hub {
+  private identities = new WeakMap<Socket, { userId: string; sessionId: string }>();
   private rooms = new Map<string, Set<Socket>>();
   private stopListening: (() => Promise<void>) | null = null;
   /** Открытые окна сжатия по воркспейсам: события, пришедшие после первого, ждут конца окна */
@@ -74,13 +78,14 @@ export class Hub {
   async stop() {
     for (const w of this.windows.values()) clearTimeout(w.timer);
     this.windows.clear();
-    for (const room of this.rooms.values()) for (const s of room) (s as { close?: () => void }).close?.();
+    for (const room of this.rooms.values()) for (const s of room) s.close?.();
     this.rooms.clear();
     await this.stopListening?.();
     this.stopListening = null;
   }
 
-  join(workspaceId: string, socket: Socket) {
+  join(workspaceId: string, socket: Socket, identity?: { userId: string; sessionId: string }) {
+    if (identity) this.identities.set(socket, identity);
     let room = this.rooms.get(workspaceId);
     if (!room) this.rooms.set(workspaceId, (room = new Set()));
     room.add(socket);
@@ -92,8 +97,46 @@ export class Hub {
     if (room && room.size === 0) this.rooms.delete(workspaceId);
   }
 
+  revokeSessions(revoke: SessionRevoke) {
+    const sessions = 'sessionIds' in revoke ? new Set(revoke.sessionIds) : null;
+    for (const [workspaceId, room] of this.rooms) {
+      for (const socket of room) {
+        const identity = this.identities.get(socket);
+        if (!identity) continue;
+        if ('userId' in revoke ? identity.userId === revoke.userId : sessions?.has(identity.sessionId)) {
+          this.leave(workspaceId, socket);
+          try {
+            socket.close?.(1008, 'Session access changed');
+          } catch {
+            // The socket may have closed while the notification was in flight.
+          }
+        }
+      }
+    }
+  }
+
   /** Рассылает событие только сокетам его воркспейса. Первое уходит сразу, следующие в окне — свёрнутыми в его конце */
   dispatch(event: EventEnvelope) {
+    if (event.type === 'workspace.security_updated') {
+      const room = this.rooms.get(event.workspaceId);
+      this.rooms.delete(event.workspaceId);
+      if (room) {
+        const message = eventMessage({ event, count: 1 });
+        for (const socket of room) {
+          try {
+            socket.send(message);
+          } catch {
+            // Continue closing the room if one socket is already gone.
+          }
+          try {
+            socket.close?.(1008, 'Workspace security settings changed');
+          } catch {
+            // The room has already been detached from the hub.
+          }
+        }
+      }
+      return;
+    }
     if (!this.rooms.has(event.workspaceId)) return;
     const w = this.windows.get(event.workspaceId);
     if (w) {

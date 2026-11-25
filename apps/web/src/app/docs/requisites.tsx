@@ -2,9 +2,9 @@
    и редактор банковских счетов (БИК, р/с, к/с, банк) компании или организации. */
 import * as React from 'react';
 import { CircleAlert, Plus, Star, Trash2 } from 'lucide-react';
-import { COMPANY_KINDS, COMPANY_KIND_LABELS, isValidAccount, isValidBik, validateRequisites, type CompanyKind } from '@erp/shared';
-import { Badge, Button, Field, IconButton, Input, toast } from '@/components/ui';
-import { tEnum, useT } from '@/i18n';
+import { bankAccountRequisites, COMPANY_KINDS, COMPANY_KIND_LABELS, COUNTRY_CODES, getCountryPack, isValidAccount, isValidBik, validateRequisites, type CompanyKind, type CountryCode, type CountryRequisites } from '@erp/shared';
+import { Badge, Button, Field, IconButton, Input, Select, toast } from '@/components/ui';
+import { hasKey, tEnum, useT } from '@/i18n';
 import { useDocsApi, useBankAccounts, type BankAccount } from './data';
 
 export interface RequisitesValue {
@@ -19,7 +19,7 @@ export interface RequisitesValue {
 /** Ошибки реквизитов по полям (пустой объект — всё верно) */
 export const checkRequisites = (v: RequisitesValue) => validateRequisites(v);
 
-export function RequisitesFields({ value, onChange, errors, disabled }: { value: RequisitesValue; onChange: (patch: Partial<RequisitesValue>) => void; errors: Record<string, string>; disabled?: boolean }) {
+export function RequisitesFields({ value, onChange, errors, disabled, country = 'RU' }: { value: RequisitesValue; onChange: (patch: Partial<RequisitesValue>) => void; errors: Record<string, string>; disabled?: boolean; country?: CountryCode }) {
   const t = useT();
   const innLen = value.kind === 'legal' ? 10 : 12;
   return (
@@ -36,15 +36,15 @@ export function RequisitesFields({ value, onChange, errors, disabled }: { value:
             </select>
           )}
         </Field>
-        <Field label={t('docs.requisites.inn')} className="grow" error={errors.inn} hint={t('docs.requisites.innHint', { n: innLen })}>
+        {country === 'RU' && <Field label={t('docs.requisites.inn')} className="grow" error={errors.inn} hint={t('docs.requisites.innHint', { n: innLen })}>
           {p => <Input {...p} inputMode="numeric" disabled={disabled} maxLength={12} value={value.inn} onChange={e => onChange({ inn: e.target.value.replace(/\D/g, '') })} />}
-        </Field>
-        {value.kind === 'legal' && (
+        </Field>}
+        {country === 'RU' && value.kind === 'legal' && (
           <Field label={t('docs.requisites.kpp')} className="grow" error={errors.kpp}>
             {p => <Input {...p} disabled={disabled} maxLength={9} value={value.kpp} onChange={e => onChange({ kpp: e.target.value.toUpperCase() })} />}
           </Field>
         )}
-        {value.kind !== 'individual' && (
+        {country === 'RU' && value.kind !== 'individual' && (
           <Field label={value.kind === 'legal' ? t('docs.requisites.ogrn') : t('docs.requisites.ogrnip')} className="grow" error={errors.ogrn}>
             {p => <Input {...p} inputMode="numeric" disabled={disabled} maxLength={15} value={value.ogrn} onChange={e => onChange({ ogrn: e.target.value.replace(/\D/g, '') })} />}
           </Field>
@@ -56,10 +56,50 @@ export function RequisitesFields({ value, onChange, errors, disabled }: { value:
   );
 }
 
+export function CountryField({ value, onChange }: { value: CountryCode; onChange: (country: CountryCode) => void }) {
+  const t = useT();
+  return (
+    <Field label={t('docs.requisites.country')}>
+      {p => <Select id={p.id} value={value} onValueChange={v => onChange(v as CountryCode)} options={COUNTRY_CODES.map(code => ({ value: code, label: t(`docs.requisites.countries.${code}`) }))} />}
+    </Field>
+  );
+}
+
+export function useCountryRequisiteLabel() {
+  const t = useT();
+  return (field: { key: string; label: string }) => {
+    const key = `docs.requisites.countryFields.${field.key}`;
+    return hasKey(key) ? t(key) : field.label;
+  };
+}
+
+export function CountryRequisiteFields({ country, value, errors, onChange }: { country: CountryCode; value: CountryRequisites; errors: Record<string, string>; onChange: (value: CountryRequisites) => void }) {
+  const label = useCountryRequisiteLabel();
+  return (
+    <div className="row req-row">
+      {getCountryPack(country).requisiteFields.map(field => (
+        <Field key={field.key} label={label(field)} className="grow" error={errors[field.key]}>
+          {p => <Input {...p} inputMode={field.numeric ? 'numeric' : 'text'} placeholder={field.mask} maxLength={field.numeric ? field.maxLength : undefined} value={value[field.key] ?? ''} onChange={e => {
+            const raw = e.target.value;
+            const next = field.numeric ? raw.replace(/\D/g, '') : raw.replace(/\s/g, '').toUpperCase();
+            onChange({ ...value, [field.key]: next });
+          }} />}
+        </Field>
+      ))}
+    </div>
+  );
+}
+
+export function checkCountryRequisiteFields(country: CountryCode, value: CountryRequisites, message: string): Record<string, string> {
+  const result = getCountryPack(country).requisitesSchema.safeParse(value);
+  return result.success ? {} : Object.fromEntries(result.error.issues.map(issue => [String(issue.path[0]), message]));
+}
+
 const mask = (acc: string) => `${acc.slice(0, 5)} ${acc.slice(5, 8)} ${acc.slice(8, 9)} ${acc.slice(9, 13)} ${acc.slice(13)}`;
 
 /** Банковские счета владельца: список, «по умолчанию», удаление и форма добавления */
-export function BankAccountsEditor({ owner, ownerId, canEdit }: { owner: 'companies' | 'organizations'; ownerId: string; canEdit: boolean }) {
+export function BankAccountsEditor({ owner, ownerId, canEdit, country = 'RU' }: { owner: 'companies' | 'organizations'; ownerId: string; canEdit: boolean; country?: CountryCode }) {
+  const kz = country === 'KZ';
   const list = useBankAccounts(owner, ownerId);
   const api = useDocsApi();
   const t = useT();
@@ -71,8 +111,15 @@ export function BankAccountsEditor({ owner, ownerId, canEdit }: { owner: 'compan
   const add = async () => {
     if (busy) return;
     const e: Record<string, string> = {};
-    if (!isValidBik(f.bik)) e.bik = t('docs.requisites.bikError');
-    if (!isValidAccount(f.account)) e.account = t('docs.requisites.accountError');
+    if (kz) {
+      const result = bankAccountRequisites(country).safeParse(f);
+      if (!result.success) for (const issue of result.error.issues) {
+        e[String(issue.path[0])] = t('docs.requisites.countryFieldInvalid');
+      }
+    } else {
+      if (!isValidBik(f.bik)) e.bik = t('docs.requisites.bikError');
+      if (!isValidAccount(f.account)) e.account = t('docs.requisites.accountError');
+    }
     if (f.corrAccount && !isValidAccount(f.corrAccount)) e.corrAccount = t('docs.requisites.corrError');
     if (!f.bankName.trim()) e.bankName = t('docs.requisites.bankNameRequired');
     setErr(e);
@@ -106,7 +153,7 @@ export function BankAccountsEditor({ owner, ownerId, canEdit }: { owner: 'compan
                   {b.bankName} {b.isDefault && <Badge tone="accent">{t('docs.requisites.default')}</Badge>}
                 </div>
                 <div className="faint mono" style={{ fontSize: 11.5 }}>
-                  {t('docs.requisites.bik')} {b.bik} · {mask(b.account)}
+                  {t('docs.requisites.bik')} {b.bik} · {kz ? b.account : mask(b.account)}
                   {b.corrAccount ? ` · ${t('docs.requisites.corrShort')} ${b.corrAccount}` : ''}
                 </div>
               </div>
@@ -140,20 +187,20 @@ export function BankAccountsEditor({ owner, ownerId, canEdit }: { owner: 'compan
             }}
           >
             <div className="row req-row">
-              <Field label={t('docs.requisites.bik')} error={err.bik} className="grow">
-                {p => <Input {...p} autoFocus inputMode="numeric" maxLength={9} value={f.bik} onChange={e => setF({ ...f, bik: e.target.value.replace(/\D/g, '') })} />}
+              <Field label={kz ? t('docs.requisites.countryFields.bik') : t('docs.requisites.bik')} error={err.bik} className="grow">
+                {p => <Input {...p} autoFocus inputMode={kz ? 'text' : 'numeric'} maxLength={kz ? 11 : 9} value={f.bik} onChange={e => setF({ ...f, bik: kz ? e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') : e.target.value.replace(/\D/g, '') })} />}
               </Field>
               <Field label={t('docs.requisites.bankName')} error={err.bankName} className="grow" >
                 {p => <Input {...p} value={f.bankName} onChange={e => setF({ ...f, bankName: e.target.value })} placeholder={t('docs.requisites.bankNamePlaceholder')} />}
               </Field>
             </div>
             <div className="row req-row">
-              <Field label={t('docs.requisites.account')} error={err.account} className="grow">
-                {p => <Input {...p} inputMode="numeric" maxLength={20} value={f.account} onChange={e => setF({ ...f, account: e.target.value.replace(/\D/g, '') })} />}
+              <Field label={kz ? t('docs.requisites.countryFields.iik') : t('docs.requisites.account')} error={err.account} className="grow">
+                {p => <Input {...p} inputMode={kz ? 'text' : 'numeric'} maxLength={kz ? undefined : 20} value={f.account} onChange={e => setF({ ...f, account: kz ? e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20) : e.target.value.replace(/\D/g, '') })} />}
               </Field>
-              <Field label={t('docs.requisites.corrAccount')} error={err.corrAccount} className="grow">
+              {!kz && <Field label={t('docs.requisites.corrAccount')} error={err.corrAccount} className="grow">
                 {p => <Input {...p} inputMode="numeric" maxLength={20} value={f.corrAccount} onChange={e => setF({ ...f, corrAccount: e.target.value.replace(/\D/g, '') })} />}
-              </Field>
+              </Field>}
             </div>
             <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
               <Button type="button" variant="ghost" onClick={() => (setAdding(false), setErr({}))}>

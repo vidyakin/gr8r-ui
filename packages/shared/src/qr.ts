@@ -3,12 +3,11 @@
 import qrcode from 'qrcode-generator';
 
 /** Квадратный SVG с QR-кодом для текста (обычно ссылка). Размер задаёт контейнер: SVG масштабируется по viewBox */
-export function qrSvg(text: string): string {
+export function qrSvg(text: string, quiet = 2): string {
   const q = qrcode(0, 'M');
   q.addData(text, 'Byte');
   q.make();
   const n = q.getModuleCount();
-  const quiet = 2;
   const size = n + quiet * 2;
   let path = '';
   for (let r = 0; r < n; r++) {

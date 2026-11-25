@@ -298,6 +298,7 @@ export const money = {
     payments: 'Payments (cash movements)',
   },
   bankImport: {
+    kzPaymentCode: 'Payment purpose code {code}',
     drop: 'Drop the statement file here (1C exchange .txt or CSV) or click to choose',
     title: 'Bank statement',
     subtitle: 'Import a 1CClientBankExchange file (windows-1251 or UTF-8): receipts and payments become bank documents',

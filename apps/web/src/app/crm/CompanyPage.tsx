@@ -26,6 +26,7 @@ import { CompanyContractsTab } from '../docs/CompanyContracts';
 import { CompanyDocumentsTab } from '../docs/CompanyDocuments';
 import { ClientCases } from '../cases/ClientCases';
 import { CompanySettlementsTab } from '../money/CompanySettlements';
+import { SupplierPortalLinkButton } from '../portal/SupplierPortalLinkDialog';
 import { SupplierRatingBadge } from '../docs/SupplierRatingsPage';
 import { NextContactPanel } from './NextContactPanel';
 import { WebsiteEnrichPanel } from './WebsiteEnrichPanel';
@@ -190,6 +191,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
                 <ExternalLink size={15} />
               </a>
             </Tooltip>
+            {co.isSupplier && !hidden.includes('document.total') && <SupplierPortalLinkButton companyId={co.id} />}
             <EntityChatButton entityType="company" entityId={co.id} title={co.name} guestName={co.name} size="sm" />
             <Button size="sm" className="hide-m" onClick={() => ui.newContact({ company: co.id })}>
               <UserPlus size={13} />

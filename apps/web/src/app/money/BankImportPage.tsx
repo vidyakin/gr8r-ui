@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { Download, FileUp } from 'lucide-react';
 import { PAYABLE_TYPES } from '@erp/shared';
 import { Alert, Badge, Button, Checkbox, Field, Select, toast } from '@/components/ui';
-import { fmtAmount, hasKey, t as translate, useT } from '@/i18n';
+import { fmtAmount, fmtCurrency, hasKey, t as translate, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { fmtDate } from '../lib/dates';
 import { typeLabel, useDocuments, useOrganizations } from '../docs/data';
@@ -207,11 +207,13 @@ export function BankImportPage() {
                     <td>{r.number}</td>
                     <td className="r num" style={{ color: r.direction === 'in' ? 'var(--green, inherit)' : undefined }}>
                       {r.direction === 'out' ? '−' : ''}
-                      {fmtAmount(r.amount)}
+                      {r.currency ? fmtCurrency(r.amount, r.currency) : fmtAmount(r.amount)}
                     </td>
                     <td>
                       <div>{r.party.name || '—'}</div>
-                      <div className="faint">{[r.party.inn, r.purpose].filter(Boolean).join(' · ')}</div>
+                      <div className="faint">
+                        {[r.party.inn, r.knp && tt('money.bankImport.kzPaymentCode', { code: r.knp }), r.purpose].filter(Boolean).join(' · ')}
+                      </div>
                     </td>
                     <td>
                       {r.direction && !isOther(r.operation) ? (
@@ -286,9 +288,11 @@ function OrdersExport() {
   const [accountId, setAccountId] = React.useState('');
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState('');
-  const organization = orgId || orgs.data?.[0]?.id;
+  const exportOrgs = (orgs.data ?? []).filter(org => org.country !== 'KZ');
+  const organization = exportOrgs.find(org => org.id === orgId)?.id ?? exportOrgs[0]?.id;
   const accounts = useOrgBankAccounts(organization);
-  const account = accountId || accounts.data?.[0]?.id || '';
+  const account = accounts.data?.find(bank => bank.id === accountId)?.id ?? accounts.data?.[0]?.id ?? '';
+  if (!exportOrgs.length) return null;
   return (
     <section style={{ padding: 'var(--gutter)' }}>
       <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>{tt('money.bankImport.exportTitle')}</h2>
@@ -305,7 +309,7 @@ function OrdersExport() {
                 setOrgId(v);
                 setAccountId('');
               }}
-              options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))}
+              options={exportOrgs.map(o => ({ value: o.id, label: o.name }))}
               aria-label={tt('money.form.organization')}
             />
           )}

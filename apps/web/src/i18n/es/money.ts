@@ -301,6 +301,7 @@ export const money: Widen<typeof M> = {
     payments: 'Pagos (movimientos de tesorería)',
   },
   bankImport: {
+    kzPaymentCode: 'Código de finalidad del pago {code}',
     drop: 'Arrastre aquí el archivo del extracto (intercambio 1C .txt o CSV) o haga clic para elegir',
     title: 'Extracto bancario',
     subtitle: 'Importación de un archivo 1CClientBankExchange (windows-1251 o UTF-8): los cobros y pagos se convierten en documentos bancarios',

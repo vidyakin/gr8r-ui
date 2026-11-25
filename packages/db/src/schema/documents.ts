@@ -2,7 +2,7 @@
    Связи — составные внешние ключи (workspace_id, id): запись одного арендатора не сошлётся на запись другого. */
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { FileRef } from '@erp/shared';
+import { COUNTRY_CODES, type CountryRequisites, type FileRef } from '@erp/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { attachments } from './attachments';
@@ -22,6 +22,8 @@ export const organizations = pgTable(
     name: text('name').notNull(),
     fullName: text('full_name').notNull().default(''),
     kind: text('kind', { enum: ['legal', 'sole_proprietor', 'individual'] }).notNull().default('legal'),
+    country: text('country', { enum: COUNTRY_CODES }).notNull().default('RU'),
+    requisites: jsonb('requisites').$type<CountryRequisites>().notNull().default({}),
     inn: text('inn').notNull().default(''),
     kpp: text('kpp').notNull().default(''),
     ogrn: text('ogrn').notNull().default(''),
@@ -32,7 +34,7 @@ export const organizations = pgTable(
     directorName: text('director_name').notNull().default(''),
     directorTitle: text('director_title').notNull().default('Генеральный директор'),
     accountantName: text('accountant_name').notNull().default(''),
-    taxSystem: text('tax_system', { enum: ['osn', 'usn'] }).notNull().default('osn'),
+    taxSystem: text('tax_system', { enum: ['osn', 'usn', 'our', 'simplified', 'standard', 'exempt'] }).notNull().default('osn'),
     defaultVatRate: text('default_vat_rate').notNull().default('20'),
     /** Печать и подписи: пока ссылка и метаданные ({ name, url, size?, mimeType? }); загрузка файлов — с хранилищем S3 */
     stampFile: jsonb('stamp_file').$type<FileRef>(),
@@ -45,9 +47,10 @@ export const organizations = pgTable(
   },
   t => [
     unique('organizations_ws_id_uq').on(t.workspaceId, t.id),
+    check('organizations_country_chk', sql`${t.country} IN ('RU', 'KZ', 'AE')`),
     check('organizations_kind_chk', sql`${t.kind} in ('legal','sole_proprietor','individual')`),
-    check('organizations_tax_chk', sql`${t.taxSystem} in ('osn','usn')`),
-    check('organizations_vat_chk', sql`${t.defaultVatRate} in ('none','0','5','7','10','20')`),
+    check('organizations_tax_chk', sql`${t.taxSystem} IN ('osn', 'usn', 'our', 'simplified', 'standard', 'exempt')`),
+    check('organizations_vat_chk', sql`${t.defaultVatRate} = 'none' OR ${t.defaultVatRate} ~ '^[0-9]+(\\.[0-9]+)?$'`),
     // одна организация по умолчанию на воркспейс
     uniqueIndex('organizations_default_uq').on(t.workspaceId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
   ],
@@ -138,6 +141,7 @@ export const warehouses = pgTable(
     kind: text('kind', { enum: ['warehouse', 'workshop', 'transit', 'quarantine'] }).notNull().default('warehouse'),
     /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
     counterpartyId: uuid('counterparty_id'),
+    useBins: boolean('use_bins').notNull().default(false),
     isDefault: boolean('is_default').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -150,6 +154,49 @@ export const warehouses = pgTable(
     uniqueIndex('warehouses_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
     // задача 1186: карантинный склад (входной контроль сырья) — расход с него запрещён
     check('warehouses_kind_chk', sql`${t.kind} in ('warehouse','workshop','transit','quarantine')`),
+  ],
+);
+
+export const warehouseBins = pgTable(
+  'warehouse_bins',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    code: text('code').notNull(),
+    name: text('name').notNull().default(''),
+    zone: text('zone').notNull().default(''),
+    rack: text('rack').notNull().default(''),
+    shelf: text('shelf').notNull().default(''),
+    cell: text('cell').notNull().default(''),
+    parentId: uuid('parent_id'),
+    active: boolean('active').notNull().default(true),
+  },
+  t => [
+    unique('warehouse_bins_ws_id_uq').on(t.workspaceId, t.id),
+    unique('warehouse_bins_warehouse_id_uq').on(t.workspaceId, t.warehouseId, t.id),
+    unique('warehouse_bins_code_uq').on(t.workspaceId, t.warehouseId, t.code),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'warehouse_bins_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId, t.parentId], foreignColumns: [t.workspaceId, t.warehouseId, t.id], name: 'warehouse_bins_parent_fk' }),
+    check('warehouse_bins_code_chk', sql`length(btrim(${t.code})) between 1 and 64`),
+    check('warehouse_bins_parent_chk', sql`${t.parentId} <> ${t.id}`),
+  ],
+);
+
+export const stockBinBalances = pgTable(
+  'stock_bin_balances',
+  {
+    workspaceId: wsCol(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    binId: uuid('bin_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
+  },
+  t => [
+    primaryKey({ name: 'stock_bin_balances_pkey', columns: [t.workspaceId, t.warehouseId, t.binId, t.productId] }),
+    index('stock_bin_balances_product_idx').on(t.workspaceId, t.warehouseId, t.productId),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId, t.binId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.warehouseId, warehouseBins.id], name: 'stock_bin_balances_bin_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_bin_balances_product_fk' }),
   ],
 );
 
@@ -278,6 +325,10 @@ export const documents = pgTable(
     vatTotal: money('vat_total').notNull().default('0'),
     total: money('total').notNull().default('0'),
     basedOnId: uuid('based_on_id'),
+    supplierStatus: text('supplier_status', { enum: ['pending', 'confirmed', 'shipped', 'declined'] }).notNull().default('pending'),
+    expectedShipDate: date('expected_ship_date', { mode: 'string' }),
+    supplierComment: text('supplier_comment').notNull().default(''),
+    supplierConfirmedAt: ts('supplier_confirmed_at'),
     responsibleId: uuid('responsible_id'),
     comment: text('comment').notNull().default(''),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
@@ -303,6 +354,8 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.investmentProjectId], foreignColumns: [investmentProjects.workspaceId, investmentProjects.id], name: 'documents_investment_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'documents_object_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
+    check('documents_supplier_status_chk', sql`${t.supplierStatus} in ('pending','confirmed','shipped','declined')`),
+    index('documents_supplier_portal_idx').on(t.workspaceId, t.counterpartyId, t.date.desc()).where(sql`${t.type} = 'supplier_order' and ${t.status} = 'posted'`),
     check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','opening_stock','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement','price_setting')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
@@ -375,6 +428,10 @@ export const documentLines = pgTable(
     shipBy: date('ship_by', { mode: 'string' }),
     /** Партия строки (задача 1187): номер партии прихода; пусто — партия не задана */
     batchNumber: text('batch_number'),
+    binId: uuid('bin_id'),
+    toBinId: uuid('to_bin_id'),
+    gtdNumber: text('gtd_number'),
+    originCountry: text('origin_country'),
     /** Дата выработки партии строки */
     batchProducedAt: date('batch_produced_at', { mode: 'string' }),
     /** Годен до партии строки; пусто — берётся срок годности товара */
@@ -385,6 +442,8 @@ export const documentLines = pgTable(
   },
   t => [
     unique('document_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.binId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.id], name: 'document_lines_bin_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.toBinId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.id], name: 'document_lines_to_bin_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_lines_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'document_lines_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'document_lines_unit_fk' }),
@@ -394,7 +453,7 @@ export const documentLines = pgTable(
     check('document_lines_qty_chk', sql`${t.qty} >= 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
     check('document_lines_unit_factor_chk', sql`${t.unitFactor} > 0`),
     check('document_lines_book_qty_chk', sql`${t.bookQty} >= 0 and ${t.receivedQty} >= 0`),
-    check('document_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
+    check('document_lines_vat_chk', sql`${t.vatRate} = 'none' OR ${t.vatRate} ~ '^[0-9]+(\\.[0-9]+)?$'`),
     check('document_lines_stock_role_chk', sql`${t.stockRole} is null or ${t.stockRole} in ('in','out')`),
     check('document_lines_tolling_role_chk', sql`${t.tollingRole} is null or ${t.tollingRole} in ('product','material','waste')`),
     index('document_lines_doc_idx').on(t.documentId, t.sortOrder),
@@ -473,6 +532,9 @@ export const stockMoves = pgTable(
     documentLineId: uuid('document_line_id'),
     /** Партия (задача 1187): приход с партией создаёт/пополняет её, расход FEFO ссылается на списанную партию */
     batchId: uuid('batch_id'),
+    binId: uuid('bin_id'),
+    gtdNumber: text('gtd_number'),
+    originCountry: text('origin_country'),
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
     /** Приход: цена единицы без НДС (или с НДС при УСН); расход: себестоимость по средней на момент списания */
     cost: numeric('cost', { precision: 18, scale: 4 }).notNull().default('0'),
@@ -494,6 +556,8 @@ export const stockMoves = pgTable(
     index('stock_moves_product_idx').on(t.workspaceId, t.productId, t.seq),
     index('stock_moves_document_idx').on(t.documentId),
     index('stock_moves_batch_idx').on(t.workspaceId, t.batchId),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId, t.binId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.warehouseId, warehouseBins.id], name: 'stock_moves_bin_fk' }),
+    index('stock_moves_bin_idx').on(t.workspaceId, t.warehouseId, t.binId, t.productId, t.seq).where(sql`${t.binId} is not null`),
   ],
 );
 

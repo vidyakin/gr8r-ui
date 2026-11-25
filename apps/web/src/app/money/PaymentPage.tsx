@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router';
 import { Plus, Printer, Trash2 } from 'lucide-react';
-import { operationNeedsAccountable, operationNeedsCounterparty, operationSettlement, operationsOfType, PAYABLE_TYPES, type PaymentDocType, type PaymentOperation } from '@erp/shared';
+import { operationNeedsAccountable, operationNeedsCounterparty, operationSettlement, operationsOfType, PAYABLE_TYPES, printFormsFor, type PaymentDocType, type PaymentOperation } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, tProductionEnum, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -32,9 +32,6 @@ interface Line {
 
 const today = () => new Date().toISOString().slice(0, 10);
 const newLine = (): Line => ({ id: crypto.randomUUID(), settlementDocumentId: null, counterpartyId: null, counterpartyName: '', amount: '', cashFlowItemId: '', costItemId: null, objectId: null, comment: '' });
-/** Печатная форма документа: КО-1, КО-2, поступление на счёт, платёжное поручение 0401060, АО-1 */
-const PRINT_FORM: Record<string, string> = { cash_receipt: 'ko1', cash_payment: 'ko2', bank_receipt: 'bank_receipt', bank_payment: 'payment_order', advance_report: 'advance_report' };
-
 export function PaymentPage() {
   const tt = useT();
   const { id } = useParams();
@@ -181,7 +178,7 @@ export function PaymentPage() {
     );
 
   const title = detail?.number ?? tt('money.form.newTitle');
-  const printForm = PRINT_FORM[docType];
+  const printForm = printFormsFor(docType, detail?.organizationCountry)[0];
 
   return (
     <DocForm

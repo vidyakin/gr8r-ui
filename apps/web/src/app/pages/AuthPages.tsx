@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui';
 import { Logo } from '../components/brand';
 import { AuthCard, AuthShell, FieldErr, SocialButtons, StrengthMeter, useBusy, useLoading } from '../components/auth-shell';
-import { errorMessage } from '../data/api';
+import { RECOVERY_CODE_RE, TOTP_CODE_RE } from '@erp/shared';
+import { ApiError, errorMessage } from '../data/api';
 import { useSession } from '../data/session';
 import { EMAIL_RE, authForm, pendingInvite, pwWeak } from '../lib/auth';
 import { SECTIONS } from '../routes';
@@ -42,19 +43,32 @@ export function SignInPage() {
   const [email, setEmail] = React.useState(authForm.email);
   const [pw, setPw] = React.useState('');
   const [show, setShow] = React.useState(false);
+  const [challenge, setChallenge] = React.useState<{ token: string; email: string } | null>(null);
+  const [code, setCode] = React.useState('');
+  const [factorError, setFactorError] = React.useState('');
+  const [expired, setExpired] = React.useState(false);
   const [err, setErr] = React.useState<{ email?: string; pw?: string }>({});
   const [busy, run] = useBusy();
   const emailRef = React.useRef<HTMLInputElement>(null);
   const pwRef = React.useRef<HTMLInputElement>(null);
   const demo = React.useMemo(demoLogin, []);
 
+  const finish = (em: string) => {
+    const inv = pendingInvite.get();
+    navigate(inv ? `/join/${inv}` : SECTIONS.home.path, { replace: true });
+    toast(tr('pages.auth.signedIn', { email: em }));
+  };
+
   const signIn = (em: string, password: string) =>
     run(async () => {
       try {
-        await session.signIn(em, password);
-        const inv = pendingInvite.get();
-        navigate(inv ? `/join/${inv}` : SECTIONS.home.path, { replace: true });
-        toast(tr('pages.auth.signedIn', { email: em }));
+        const token = await session.signIn(em, password);
+        if (token) {
+          setPw('');
+          setChallenge({ token, email: em });
+        } else {
+          finish(em);
+        }
       } catch (e) {
         setErr({ pw: errorMessage(e) });
         pwRef.current?.focus();
@@ -86,6 +100,56 @@ export function SignInPage() {
     }
     void signIn(em, pw);
   };
+
+  if (challenge) {
+    const back = () => {
+      setChallenge(null);
+      setCode('');
+      setFactorError('');
+      setExpired(false);
+    };
+    const submitFactor = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (expired) return;
+      const value = code.trim();
+      if (!TOTP_CODE_RE.test(value) && !RECOVERY_CODE_RE.test(value)) {
+        setFactorError(tr('settings.loginSecurity.codeFormat'));
+        return;
+      }
+      setFactorError('');
+      void run(async () => {
+        try {
+          await session.signInWithFactor(challenge.token, value);
+          finish(challenge.email);
+        } catch (err) {
+          setFactorError(errorMessage(err));
+          setExpired(err instanceof ApiError && err.code === 'invalid_login_challenge');
+        }
+      });
+    };
+    return (
+      <AuthShell>
+        <AuthCard as="form" onSubmit={submitFactor}>
+          <Badge color="var(--accent)"><KeyRound size={20} /></Badge>
+          <h1>{tr('settings.nav.items.twoFactor')}</h1>
+          <p className="sub">{tr('settings.loginSecurity.signInHelp')}</p>
+          <div className="field">
+            <label className="label" htmlFor="login-factor">{tr('settings.loginSecurity.loginCode')}</label>
+            <input id="login-factor" className="input input-lg" autoFocus autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false}
+              required maxLength={9} value={code} disabled={expired || busy} onChange={e => setCode(e.target.value)}
+              aria-invalid={!!factorError} aria-describedby="login-factor-error" />
+            <FieldErr id="login-factor-error">{factorError}</FieldErr>
+          </div>
+          <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy || expired}>
+            {tr('pages.auth.signIn')}
+          </button>
+          <button type="button" className="btn btn-ghost btn-block" disabled={busy} onClick={back}>
+            {tr('settings.loginSecurity.backToPassword')}
+          </button>
+        </AuthCard>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell

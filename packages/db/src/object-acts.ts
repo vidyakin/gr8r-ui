@@ -20,6 +20,7 @@ import {
   type VatRate,
 } from '@erp/shared';
 import type { Db } from './client';
+import { workspaceVatDefaults } from './organizations';
 import { actMoneyByAct } from './act-money';
 import { canSeeCost } from './cost';
 import { createDocument, postDocument, type DocCtx } from './documents';
@@ -118,12 +119,13 @@ async function acceptedByItem(db: Db, objectId: string, excludeActId?: string): 
   return out;
 }
 
-/** Ставка НДС для строк акта по вехе и по часам: самая частая ставка позиций согласованной сметы, иначе 20% */
+/** Ставка НДС для строк акта по вехе и по часам: самая частая ставка позиций согласованной сметы, иначе ставка по умолчанию основной организации */
 async function defaultVatRate(db: Db, objectId: string): Promise<string> {
   const items = await approvedItems(db, objectId);
+  const { pack, defaultVatRate } = await workspaceVatDefaults(db);
   const counts = new Map<string, number>();
-  for (const i of items) if (i.vatRate !== 'none') counts.set(i.vatRate, (counts.get(i.vatRate) ?? 0) + 1);
-  let best = '20';
+  for (const i of items) if (i.vatRate !== 'none' && pack.vatRates.includes(i.vatRate)) counts.set(i.vatRate, (counts.get(i.vatRate) ?? 0) + 1);
+  let best = defaultVatRate;
   let top = 0;
   for (const [rate, n] of counts) if (n > top) [best, top] = [rate, n];
   return best;
@@ -552,9 +554,10 @@ async function objectWorkProduct(db: Db, ctx: ActCtx): Promise<string> {
     .where(and(eq(products.kind, 'service'), eq(products.name, name), isNull(products.archivedAt)))
     .limit(1);
   if (existing) return existing.id;
+  const { defaultVatRate } = await workspaceVatDefaults(db);
   const [created] = await db
     .insert(products)
-    .values({ workspaceId: ctx.workspaceId, kind: 'service', sku: '', name, description: 'Служебная позиция для актов и счетов по объектам: наименование строки берётся из акта', unitCode: '796', vatRate: '20', price: '0', purchasePrice: '0' })
+    .values({ workspaceId: ctx.workspaceId, kind: 'service', sku: '', name, description: 'Служебная позиция для актов и счетов по объектам: наименование строки берётся из акта', unitCode: '796', vatRate: defaultVatRate, price: '0', purchasePrice: '0' })
     .returning({ id: products.id });
   return created!.id;
 }

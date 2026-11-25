@@ -7,6 +7,11 @@ import { alias } from 'drizzle-orm/pg-core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  assertBinsCanBeDisabled,
+  createWarehouseBin,
+  listWarehouseBins,
+  listBinBalances,
+  updateWarehouseBin,
   bankAccounts,
   counterpartyCodes,
   productPartnerArticles,
@@ -52,6 +57,7 @@ import {
   stockReservations,
   unpostDocument,
   updateDocument,
+  warehouseBins,
   warehouses,
   workspaces,
   workCenters,
@@ -73,6 +79,7 @@ import {
 } from '@erp/db';
 import {
   bankAccountCreate,
+  bankAccountRequisites,
   batchQuery,
   bankAccountUpdate,
   counterpartyCodeSet,
@@ -111,6 +118,11 @@ import {
   stockBalanceQuery,
   stockMoveQuery,
   validateRequisites,
+  getCountryPack,
+  type CountryCode,
+  type CountryRequisites,
+  warehouseBinCreate,
+  warehouseBinUpdate,
   warehouseCreate,
   warehouseQuery,
   warehouseUpdate,
@@ -130,10 +142,16 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => '\\' + m);
 const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
 
 /** Реквизиты проверяются по итоговому состоянию записи (тип + ИНН + КПП + ОГРН): ошибка — в том же формате, что у zod */
-export function assertRequisites(r: { kind: CompanyKind; inn?: string | null; kpp?: string | null; ogrn?: string | null }) {
-  const errs = validateRequisites(r);
-  const first = Object.entries(errs)[0];
-  if (first) throw new AppError(400, 'validation_error', `${first[0]}: ${first[1]}`, { issues: Object.entries(errs).map(([path, message]) => ({ path, message })) });
+export function assertRequisites(r: { country: CountryCode; requisites: CountryRequisites; kind: CompanyKind; inn?: string | null; kpp?: string | null; ogrn?: string | null }) {
+  const result = getCountryPack(r.country).requisitesSchema.safeParse(r.requisites);
+  const issues = result.success ? [] : result.error.issues.map(issue => ({
+    path: ['requisites', ...issue.path].join('.'),
+    message: issue.message,
+  }));
+  if (r.country === 'RU') {
+    issues.push(...Object.entries(validateRequisites(r)).map(([path, message]) => ({ path, message })));
+  }
+  if (issues[0]) throw new AppError(400, 'validation_error', `${issues[0].path}: ${issues[0].message}`, { issues });
 }
 
 /* ---------------- организации ---------------- */
@@ -161,10 +179,19 @@ export const organizationRoutes = crud({
     return { isDefault };
   },
   prepareUpdate: async (ctx, existing, body) => {
-    assertRequisites({ kind: body.kind ?? existing.kind, inn: body.inn ?? existing.inn, kpp: body.kpp ?? existing.kpp, ogrn: body.ogrn ?? existing.ogrn });
+    const next = { ...existing, ...body };
+    assertRequisites(next);
+    const pack = getCountryPack(next.country);
+    const countryChanged = next.country !== existing.country;
+    const taxSystem = body.taxSystem ?? (countryChanged ? pack.taxSystems[0]! : existing.taxSystem);
+    const defaultVatRate = body.defaultVatRate ?? (countryChanged ? pack.defaultVatRate : existing.defaultVatRate);
+    const issues: { path: string; message: string }[] = [];
+    if (!pack.taxSystems.includes(taxSystem)) issues.push({ path: 'taxSystem', message: 'Tax system is unavailable for this country' });
+    if (!pack.vatRates.includes(defaultVatRate)) issues.push({ path: 'defaultVatRate', message: 'VAT rate is unavailable for this country' });
+    if (issues[0]) throw new AppError(400, 'validation_error', `${issues[0].path}: ${issues[0].message}`, { issues });
     if (body.isDefault === true) await clearDefault(ctx, organizations, existing.id);
     if (body.isDefault === false && existing.isDefault) throw new AppError(422, 'default_required', 'Make another organization the default instead');
-    return {};
+    return countryChanged ? { taxSystem, defaultVatRate } : {};
   },
   beforeDelete: async (ctx, row) => {
     if (row.isDefault) {
@@ -192,6 +219,7 @@ export const warehouseRoutes = crud({
     return { isDefault };
   },
   prepareUpdate: async (ctx, existing, body) => {
+    if (body.useBins === false && existing.useBins) await assertBinsCanBeDisabled(ctx.db, { workspaceId: ctx.workspaceId, warehouseId: existing.id });
     if (body.isDefault === true) await clearDefault(ctx, warehouses, existing.id);
     if (body.isDefault === false && existing.isDefault) throw new AppError(422, 'default_required', 'Make another warehouse the default instead');
     return {};
@@ -199,12 +227,36 @@ export const warehouseRoutes = crud({
   beforeDelete: async (ctx, row) => {
     const [left] = await ctx.db.select({ id: stockBalances.productId }).from(stockBalances).where(and(eq(stockBalances.warehouseId, row.id), sql`${stockBalances.qty} <> 0`)).limit(1);
     if (left) throw new AppError(422, 'warehouse_not_empty', 'The warehouse still has stock: move or write it off first');
+    if (row.useBins) await assertBinsCanBeDisabled(ctx.db, { workspaceId: ctx.workspaceId, warehouseId: row.id });
     if (row.isDefault) {
       const [other] = await ctx.db.select({ id: warehouses.id }).from(warehouses).where(and(ne(warehouses.id, row.id), isNull(warehouses.archivedAt))).limit(1);
       if (other) throw new AppError(422, 'default_required', 'Make another warehouse the default before archiving this one');
     }
   },
-});
+})
+  .get('/:id/bins', zValidator('param', idParam, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    return c.json({ items: await listWarehouseBins(db, { workspaceId, warehouseId: c.req.valid('param').id }) });
+  })
+  .post('/:id/bins', admin, zValidator('param', idParam, validationHook), zValidator('json', warehouseBinCreate, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    return c.json(await createWarehouseBin(db, { workspaceId, warehouseId: c.req.valid('param').id }, c.req.valid('json'), memberId), 201);
+  })
+  .patch('/:id/bins/:binId', admin, zValidator('param', z.object({ id: uuid, binId: uuid }), validationHook), zValidator('json', warehouseBinUpdate, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    const { id, binId } = c.req.valid('param');
+    return c.json(await updateWarehouseBin(db, { workspaceId, warehouseId: id }, binId, c.req.valid('json'), memberId));
+  })
+  .delete('/:id/bins/:binId', admin, zValidator('param', z.object({ id: uuid, binId: uuid }), validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    const { id, binId } = c.req.valid('param');
+    await updateWarehouseBin(db, { workspaceId, warehouseId: id }, binId, { active: false }, memberId, true);
+    return c.json({ ok: true });
+  })
+  .get('/:id/bin-balances', zValidator('param', idParam, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    return c.json({ items: await listBinBalances(db, { workspaceId, warehouseId: c.req.valid('param').id }) });
+  });
 
 /* ---------------- банковские счета ---------------- */
 
@@ -213,6 +265,14 @@ type Owner = { companyId: string } | { organizationId: string };
 async function setDefaultAccount(ctx: Ctx, owner: Owner, id: string) {
   const col = 'companyId' in owner ? bankAccounts.companyId : bankAccounts.organizationId;
   await ctx.db.update(bankAccounts).set({ isDefault: false }).where(and(eq(col, 'companyId' in owner ? owner.companyId : owner.organizationId), ne(bankAccounts.id, id)));
+}
+
+function assertBankAccountRequisites(country: string, input: { account?: string; bik?: string }) {
+  const result = bankAccountRequisites(country).partial().safeParse(input);
+  if (!result.success) {
+    const issues = result.error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message }));
+    throw new AppError(400, 'validation_error', issues[0]?.message ?? 'Invalid bank account details', { issues });
+  }
 }
 
 /** /companies/:id/bank-accounts (member+) и /organizations/:id/bank-accounts (admin+) */
@@ -234,8 +294,9 @@ function bankAccountList(ownerTable: typeof companies | typeof organizations, ki
       const id = c.req.valid('param').id;
       const body = c.req.valid('json');
       if (kind === 'company') requireVisibleFields(assertNoHiddenFieldWrite('company', { bankAccounts: body }, await hiddenFieldsOf(ctx)));
-      const [owner] = await ctx.db.select({ id: ownerTable.id }).from(ownerTable).where(eq(ownerTable.id, id)).limit(1);
+      const [owner] = await ctx.db.select({ id: ownerTable.id, country: ownerTable.country }).from(ownerTable).where(eq(ownerTable.id, id)).limit(1);
       if (!owner) throw notFound(kind);
+      assertBankAccountRequisites(owner.country, body);
       const [first] = await ctx.db.select({ id: bankAccounts.id }).from(bankAccounts).where(eq(col, id)).limit(1);
       const ref: Owner = kind === 'company' ? { companyId: id } : { organizationId: id };
       const isDefault = body.isDefault ?? !first;
@@ -360,6 +421,12 @@ export const bankAccountRoutes = new Hono<AppEnv>()
     if (acc.companyId) requireVisibleFields(assertNoHiddenFieldWrite('company', { bankAccounts: true }, await hiddenFieldsOf(ctx)));
     if (acc.organizationId && ctx.role !== 'owner' && ctx.role !== 'admin') throw new AppError(403, 'forbidden', 'This action requires the admin role or higher');
     const body = c.req.valid('json');
+    if (body.account !== undefined || body.bik !== undefined) {
+      const table = acc.companyId ? companies : organizations;
+      const [owner] = await ctx.db.select({ country: table.country }).from(table).where(eq(table.id, (acc.companyId ?? acc.organizationId)!)).limit(1);
+      if (!owner) throw notFound(acc.companyId ? 'company' : 'organization');
+      assertBankAccountRequisites(owner.country, body);
+    }
     const [row] = await ctx.db.update(bankAccounts).set({ ...body, updatedAt: new Date() }).where(eq(bankAccounts.id, acc.id)).returning();
     if (body.isDefault) await setDefaultAccount(ctx, acc.companyId ? { companyId: acc.companyId } : { organizationId: acc.organizationId! }, acc.id);
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'bank_account.updated', entity: 'bank_account', recordId: acc.id, actorId: ctx.memberId, payload: { changes: Object.keys(body) } });
@@ -719,9 +786,10 @@ export const documentRoutes = new Hono<AppEnv>()
     const id = c.req.valid('param').id;
     await assertDocumentPrintAccess(ctx);
     const { form, templateId } = c.req.valid('json');
-    const [doc] = await ctx.db.select({ type: documents.type, contractId: documents.contractId }).from(documents).where(eq(documents.id, id)).limit(1);
+    const [doc] = await ctx.db.select({ type: documents.type, contractId: documents.contractId, country: organizations.country })
+      .from(documents).innerJoin(organizations, eq(organizations.id, documents.organizationId)).where(eq(documents.id, id)).limit(1);
     if (!doc) throw notFound('document');
-    if (!formAllowedFor(doc.type, form)) throw new AppError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
+    if (!formAllowedFor(doc.type, form, doc.country)) throw new AppError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
     if (isContractForm(form) && !doc.contractId) throw new AppError(422, 'contract_required', 'The document has no contract to print');
     // шаблон КП или договора проверяется сразу (доступность автору), чтобы не ставить задачу, которая заведомо упадёт
     if (templateId && usesTemplate(form)) await getTemplate(ctx.db, docCtx(ctx), templateId);
@@ -834,6 +902,10 @@ export const stockRoutes = new Hono<AppEnv>()
         id: stockMoves.id,
         seq: stockMoves.seq,
         warehouseId: stockMoves.warehouseId,
+        workspaceId: stockMoves.workspaceId,
+        binId: stockMoves.binId,
+        gtdNumber: stockMoves.gtdNumber,
+        originCountry: stockMoves.originCountry,
         productId: stockMoves.productId,
         documentId: stockMoves.documentId,
         qty: stockMoves.qty,
@@ -852,6 +924,10 @@ export const stockRoutes = new Hono<AppEnv>()
         seq: inner.seq,
         warehouseId: inner.warehouseId,
         warehouseName: warehouses.name,
+        binId: inner.binId,
+        binCode: warehouseBins.code,
+        gtdNumber: inner.gtdNumber,
+        originCountry: inner.originCountry,
         productId: inner.productId,
         documentId: inner.documentId,
         documentType: documents.type,
@@ -864,6 +940,7 @@ export const stockRoutes = new Hono<AppEnv>()
       .from(inner)
       .innerJoin(documents, eq(documents.id, inner.documentId))
       .innerJoin(warehouses, eq(warehouses.id, inner.warehouseId))
+      .leftJoin(warehouseBins, and(eq(warehouseBins.workspaceId, inner.workspaceId), eq(warehouseBins.id, inner.binId)))
       .where(q.documentId ? eq(inner.documentId, q.documentId) : undefined)
       .orderBy(desc(inner.seq))
       .limit(q.limit)

@@ -30,6 +30,7 @@ import {
 import type { Db } from './client';
 import { assertPeriodOpen, clearPeriodCosts } from './cost-closing';
 import { DOCUMENT_HOOKS } from './document-hooks';
+import { organizationCurrency } from './organizations';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -363,7 +364,7 @@ export async function createPayroll(db: Db, ctx: DocCtx, input: PayrollInput): P
   await ensurePayrollKinds(db, ctx.workspaceId);
   const [row] = await db
     .insert(documents)
-    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'payroll', date: input.date ?? periodEndOf(period), organizationId, comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
+    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'payroll', date: input.date ?? periodEndOf(period), organizationId, currency: await organizationCurrency(db, organizationId), comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
     .returning();
   await db.insert(payrollHeaders).values({ workspaceId: ctx.workspaceId, documentId: row!.id, period, workCenterId: input.workCenterId ?? null });
   if (input.lines?.length) await savePayrollLines(db, ctx, row!, input.lines);
@@ -754,7 +755,7 @@ export async function createStatement(db: Db, ctx: DocCtx, input: StatementInput
   const organizationId = input.organizationId ?? (await defaultOrganizationId(db));
   const [row] = await db
     .insert(documents)
-    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'payroll_statement', date: input.date ?? today(), organizationId, comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
+    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'payroll_statement', date: input.date ?? today(), organizationId, currency: await organizationCurrency(db, organizationId), comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
     .returning();
   await db.insert(payrollStatementHeaders).values({ workspaceId: ctx.workspaceId, documentId: row!.id, period: periodStartOf(input.period), kind: input.kind, method: input.method });
   await ensureCashFlowItems(db, ctx.workspaceId);

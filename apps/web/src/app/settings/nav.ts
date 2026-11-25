@@ -61,6 +61,8 @@ export const SET_NAV: [string, [id: string, nameKey: string, icon: LucideIcon][]
   [
     'security',
     [
+      ['two-factor', 'twoFactor', KeyRound],
+      ['workspace-security', 'workspaceSecurity', Shield],
       ['password', 'password', KeyRound],
       ['sessions', 'sessions', MonitorSmartphone],
     ],

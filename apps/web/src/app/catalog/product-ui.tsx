@@ -5,7 +5,7 @@ import { ProductPricesBlock } from '../pricing/ProductPrices';
 import { useProductKinds } from '../positions/data';
 import { useIndustry } from '../industry/data';
 import { Barcode, Building2, Factory, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, Scale, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
-import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@erp/shared';
+import { getCountryPack, PRODUCT_KINDS, validateRecord, type CountryPack, type ProductKind } from '@erp/shared';
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, IconButton, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/erp/entity-drawer';
@@ -17,8 +17,10 @@ import type { MetaField } from '../meta/data';
 import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useSuppliers, useIsAdmin, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
 import { StockLevelsTab } from './stock-levels';
 import { ProductUnitsSection } from './product-units';
+import { useDefaultOrganization } from '../docs/data';
+import { vatLabel } from '../docs/vat';
 import { ProductPartnerArticles } from '../docs/partner-codes';
-import { t, tEnum, useT } from '@/i18n';
+import { t, useT } from '@/i18n';
 import { parseNumber } from '@/i18n/format';
 import { errorMessage } from '../data/api';
 import { API_BASE } from '../data/api';
@@ -158,12 +160,13 @@ function UnitDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (c
   );
 }
 
-export function VatSelect({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
+function VatSelect({ value, onChange, id, pack, disabled }: { value: string; onChange: (v: string) => void; id?: string; pack: CountryPack; disabled?: boolean }) {
   return (
-    <select className="select" id={id} aria-label={t('catalog.product.vatRate')} value={value} onChange={e => onChange(e.target.value)}>
-      {VAT_RATES.map(v => (
+    <select className="select" id={id} aria-label={t('catalog.product.vatRate')} value={value} disabled={disabled} onChange={e => onChange(e.target.value)}>
+      {!pack.vatRates.includes(value) && <option value={value} disabled>{vatLabel(pack, value)}</option>}
+      {pack.vatRates.map(v => (
         <option key={v} value={v}>
-          {tEnum('vat', v, VAT_LABELS[v])}
+          {vatLabel(pack, v)}
         </option>
       ))}
     </select>
@@ -258,6 +261,8 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
   const batchUi = useIndustry('food') || p.trackBatches;
   const hasMining = useHasModule('mining');
   const m = useProductMutations();
+  const { organization, isPending: orgPending } = useDefaultOrganization();
+  const pack = getCountryPack(organization?.country);
   const attrs = useAttributes(p.categoryId);
   const [confirm, setConfirm] = React.useState(false);
   const t = useT();
@@ -353,7 +358,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             ),
           },
           row(Ruler, t('catalog.product.unit'), <UnitSelect value={p.unitCode} onChange={unitCode => save({ unitCode })} />, p.unitCode),
-          row(Percent, t('catalog.product.vat'), <VatSelect value={p.vatRate} onChange={vatRate => save({ vatRate })} />, tEnum('vat', p.vatRate, VAT_LABELS[p.vatRate])),
+          row(Percent, t('catalog.product.vat'), <VatSelect value={p.vatRate} onChange={vatRate => save({ vatRate })} pack={pack} disabled={orgPending} />, vatLabel(pack, p.vatRate)),
           row(CircleDollarSign, t('catalog.product.salePrice'), <FieldInput field={F.price} value={Number(p.price)} onChange={v => save({ price: v ?? 0 })} />, p.price),
           row(CircleDollarSign, t('catalog.product.purchasePrice'), <FieldInput field={F.purchasePrice} value={Number(p.purchasePrice)} onChange={v => save({ purchasePrice: v ?? 0 })} />, p.purchasePrice),
           { icon: Tags, label: t('pricing.card.title'), value: <ProductPricesBlock productId={p.id} /> },
@@ -530,7 +535,11 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
   const [barcode, setBarcode] = React.useState('');
   const [categoryId, setCategoryId] = React.useState<string | null>(initialCategory);
   const [unitCode, setUnitCode] = React.useState(initialUnitCode);
-  const [vat, setVat] = React.useState('20');
+  const { organization, isPending: orgPending } = useDefaultOrganization();
+  const pack = getCountryPack(organization?.country);
+  const [selectedVat, setVat] = React.useState<string>();
+  const vat = selectedVat && pack.vatRates.includes(selectedVat) ? selectedVat : undefined;
+  const defaultVat = pack.code === 'RU' ? pack.defaultVatRate : organization?.defaultVatRate ?? pack.defaultVatRate;
   const [price, setPrice] = React.useState('');
   const [purchase, setPurchase] = React.useState('');
   const [bulkDensity, setBulkDensity] = React.useState('');
@@ -611,7 +620,7 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
               {p => <UnitSelect value={unitCode} onChange={setUnitCode} id={p.id} />}
             </Field>
             <Field label={t('catalog.product.vat')} className="grow">
-              {p => <VatSelect value={vat} onChange={setVat} id={p.id} />}
+              {p => <VatSelect value={vat ?? defaultVat} onChange={setVat} id={p.id} pack={pack} disabled={orgPending} />}
             </Field>
           </div>
           <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>

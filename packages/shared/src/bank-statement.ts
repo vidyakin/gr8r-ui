@@ -2,6 +2,8 @@
    Чистые функции без обращений к БД и среде (работают и в браузере): их же использует импорт по API банков (1174д) —
    адаптер банка отдаёт тот же `BankTransaction`. Правила — docs/architecture/payments.md, «Банковская выписка». */
 
+import { isKzStatement, kzBankParty, kzPaymentCode, kzStatementAccount, kzStatementCurrency, normalizeKzAccount } from './countries/kz/bank-statement';
+
 export type BankDirection = 'in' | 'out';
 
 /** Сторона платежа: плательщик или получатель */
@@ -14,6 +16,7 @@ export interface BankParty {
   bik: string;
   bank: string;
   corrAccount: string;
+  kbe?: string;
 }
 
 /** Одна операция выписки в нормализованном виде (не зависит от банка и способа получения) */
@@ -35,6 +38,8 @@ export interface BankTransaction {
   purpose: string;
   /** Уникальный идентификатор платежа (УИН/код), если есть */
   uin: string;
+  knp?: string;
+  currency?: string;
 }
 
 export interface BankAccountBalance {
@@ -47,7 +52,7 @@ export interface BankAccountBalance {
   closing: string | null;
 }
 
-export type BankWarningCode = 'bad_amount' | 'bad_date' | 'missing_field' | 'unterminated' | 'unknown_line';
+export type BankWarningCode = 'bad_amount' | 'bad_date' | 'missing_field' | 'unterminated' | 'unknown_line' | 'unsupported_currency';
 
 export interface BankParseWarning {
   code: BankWarningCode;
@@ -57,6 +62,8 @@ export interface BankParseWarning {
 }
 
 export interface BankStatement {
+  country?: 'KZ';
+  currency?: string;
   version: string;
   /** Кодировка, заявленная в заголовке (Windows | DOS | UTF-8) */
   declaredEncoding: string;
@@ -126,6 +133,8 @@ export function encodeBankStatement(text: string, encoding: 'windows-1251' | 'ut
 /* ---------------- значения ---------------- */
 
 const digits = (v: string) => v.replace(/\D+/g, '');
+/** ИИК сохраняет буквы и ведущие нули. Для российских счетов действует прежняя нормализация. */
+export const normalizeBankAccount = (value: string): string => normalizeKzAccount(value) || digits(value);
 
 /** «27.10.2026» → «2026-10-27»; пустое и неверное → null */
 export function parseBankDate(v: string): string | null {
@@ -187,7 +196,9 @@ export function parseBankStatement(text: string): BankStatement {
   if (first < 0) throw new BankStatementFormatError('empty', 'The file is empty');
   if (lines[first]!.trim() !== '1CClientBankExchange') throw new BankStatementFormatError('not_a_statement', 'The file is not a 1CClientBankExchange statement');
 
+  const kz = isKzStatement(lines.slice(first + 1));
   const st: BankStatement = {
+    ...(kz ? { country: 'KZ', currency: 'KZT' } as const : {}),
     version: '',
     declaredEncoding: '',
     sender: '',
@@ -202,7 +213,7 @@ export function parseBankStatement(text: string): BankStatement {
   };
   const warn = (code: BankWarningCode, line: number, message: string) => st.warnings.push({ code, line, message });
   const addAccount = (a: string) => {
-    const d = digits(a);
+    const d = kz ? normalizeKzAccount(a) : digits(a);
     if (d && !st.accounts.includes(d)) st.accounts.push(d);
   };
 
@@ -217,6 +228,9 @@ export function parseBankStatement(text: string): BankStatement {
     const date = parseBankDate(f.get('Дата') ?? '') ?? parseBankDate(f.get('ДатаПоступило') ?? '') ?? parseBankDate(f.get('ДатаСписано') ?? '');
     if (!date) return warn('bad_date', at, `Document ${f.get('Номер') ?? ''}: wrong date «${f.get('Дата') ?? ''}»`);
     if (!(f.get('Номер') ?? '').trim()) warn('missing_field', at, 'Document without a number');
+    const currency = kz ? kzStatementCurrency(f) ?? st.currency : undefined;
+    if (kz && currency !== 'KZT') return warn('unsupported_currency', at, `Document ${f.get('Номер') ?? ''}: unsupported currency «${currency}»`);
+    const readParty = kz ? kzBankParty : partyOf;
     st.transactions.push({
       docType: s.docType,
       number: (f.get('Номер') ?? '').trim(),
@@ -224,15 +238,16 @@ export function parseBankStatement(text: string): BankStatement {
       debitDate: parseBankDate(f.get('ДатаСписано') ?? ''),
       creditDate: parseBankDate(f.get('ДатаПоступило') ?? ''),
       amount,
-      payer: partyOf(f, 'Плательщик'),
-      receiver: partyOf(f, 'Получатель'),
+      payer: readParty(f, 'Плательщик'),
+      receiver: readParty(f, 'Получатель'),
       purpose: (f.get('НазначениеПлатежа') ?? f.get('НазначениеПлатежа1') ?? '').replace(/\s+/g, ' ').trim(),
       uin: (f.get('Код') ?? f.get('УИН') ?? '').trim(),
+      ...(kz ? { currency, knp: kzPaymentCode(f) } : {}),
     });
   };
   const finishBalance = (s: Section) => {
     const f = s.fields;
-    const account = digits(f.get('РасчСчет') ?? '');
+    const account = kz ? kzStatementAccount(f) : digits(f.get('РасчСчет') ?? '');
     if (!account) return warn('missing_field', s.start, 'Balance section without an account');
     addAccount(account);
     const amt = (k: string) => (f.has(k) ? parseBankAmount(f.get(k)!) : null);
@@ -298,6 +313,15 @@ export function parseBankStatement(text: string): BankStatement {
         case 'РасчСчет':
           addAccount(value);
           break;
+        case 'РасчСчёт':
+        case 'ИИК':
+        case 'IBAN':
+          if (kz) addAccount(value);
+          break;
+        case 'Валюта':
+        case 'КодВалюты':
+          if (kz) st.currency = kzStatementCurrency(new Map([[key, value]])) ?? st.currency;
+          break;
         default:
           break;
       }
@@ -314,7 +338,7 @@ export function parseBankStatement(text: string): BankStatement {
 
 /** Приход или расход относительно своего счёта; null — счёт операции не совпал ни с одним своим (не та выписка) */
 export function bankDirection(tx: BankTransaction, ownAccounts: readonly string[]): BankDirection | 'internal' | null {
-  const own = new Set(ownAccounts.map(digits));
+  const own = new Set(ownAccounts.map(normalizeBankAccount));
   const p = !!tx.payer.account && own.has(tx.payer.account);
   const r = !!tx.receiver.account && own.has(tx.receiver.account);
   if (p && r) return 'internal';
@@ -335,7 +359,7 @@ export function bankCounterparty(tx: BankTransaction, dir: BankDirection): BankP
 
 /** Ключ повторного импорта: счёт + дата + номер + сумма (+ направление, чтобы вход и выход с одним номером не склеились) */
 export function bankImportKey(account: string, dir: BankDirection, tx: Pick<BankTransaction, 'date' | 'number' | 'amount'>): string {
-  return [digits(account), dir, tx.date, tx.number.trim(), tx.amount].join('|');
+  return [normalizeBankAccount(account), dir, tx.date, tx.number.trim(), tx.amount].join('|');
 }
 
 /** Номера документов из назначения платежа: «Оплата по счету № 45 от 01.10.2026» → ['45'].

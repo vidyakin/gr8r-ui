@@ -6,6 +6,7 @@ import { allocateRequest, dec, fmt, REQUEST_STATES, requestTransitions, type Pay
 import type { Db } from './client';
 import { assertNoActiveApproval, cancelRequestApproval, startRequestApproval } from './approvals';
 import { DOCUMENT_HOOKS, STATE_PROVIDERS, type DynamicStateDef } from './document-hooks';
+import { organizationCurrency } from './organizations';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -59,6 +60,7 @@ export async function createRequest(db: Db, ctx: DocCtx, input: RequestInput): P
       dueDate: input.dueDate ?? null,
       operation: input.operation ?? 'to_supplier',
       organizationId,
+      currency: await organizationCurrency(db, organizationId),
       counterpartyId: input.counterpartyId ?? null,
       investmentProjectId: input.investmentProjectId ?? null,
       comment: input.comment ?? '',

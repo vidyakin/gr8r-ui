@@ -339,6 +339,12 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- datos bancarios y fiscales de la contraparte ----------- */
   requisites: {
+    country: 'País',
+    countries: { RU: 'Rusia (RU)', KZ: 'Kazajistán (KZ)', AE: 'Emiratos Árabes Unidos (AE)' },
+    countryFields: { binIin: 'BIN / IIN', iik: 'IIK (IBAN)', bik: 'BIC / SWIFT', kbe: 'KBe', knp: 'KNP', trn: 'TRN', iban: 'IBAN', bic: 'BIC / SWIFT' },
+    countryFieldInvalid: 'Comprueba el formato y el dígito de control.',
+    edit: 'Editar datos fiscales',
+    saved: 'Datos fiscales guardados',
     kind: 'Tipo',
     fullName: 'Nombre completo',
     inn: 'INN',
@@ -370,6 +376,15 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- ficha del documento (DocumentPage) ----------- */
   document: {
+    lineStockDetails: "Almacenamiento y aduana",
+    lineBin: "Ubicación",
+    lineToBin: "Ubicación de destino",
+    lineNoBin: "Sin ubicación",
+    lineGtd: "Declaración aduanera (GTD)",
+    lineOrigin: "País de origen",
+    lineOriginHint: "Código ISO-2 o nombre con código numérico, p. ej. CN o China (156)",
+    lineGtdInvalid: "Usa letras, números, espacios, barras, puntos o guiones",
+    lineOriginInvalid: "Introduce un código ISO-2 o un nombre con su código numérico",
     draftRef: '(borrador)',
     title: 'Documento',
     createError: 'No se pudo crear el documento',
@@ -1196,6 +1211,13 @@ export const docs: Widen<typeof D> = {
       contract_order: 'Contrato + Pedido de cliente',
       contract_invoice: 'Contrato + Factura',
       contract_work_order: 'Contrato + Orden de trabajo',
+      kz_invoice: 'Factura para el pago (KZ)',
+      kz_z2: 'Albarán de salida de existencias (Z-2, KZ)',
+      kz_r1: 'Acta de trabajos realizados (R-1, KZ)',
+      kz_tax_invoice: 'Factura fiscal (KZ)',
+      kz_pko: 'Orden de ingreso en caja (KO-1, KZ)',
+      kz_rko: 'Orden de egreso de caja (KO-2, KZ)',
+      kz_payment_order: 'Orden de pago (KZ)',
     },
     newTemplateContract: 'Nueva plantilla de contrato',
     contractHint: 'Los parámetros del contrato y las partes provienen de la ficha del contrato; para finalidades combinadas, los parámetros del documento y el bloque {{Товары}} provienen del documento.',

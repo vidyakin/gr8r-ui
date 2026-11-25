@@ -1,0 +1,1 @@
+export const PRINT_FORMS = ['quote', 'invoice', 'upd', 'vat_invoice', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'supplier_order', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance', 'contract_order', 'contract_invoice', 'contract_work_order'] as const;

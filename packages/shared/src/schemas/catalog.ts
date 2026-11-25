@@ -1,6 +1,7 @@
 /* zod-схемы каталога: единицы ОКЕИ, категории, характеристики категорий, товары и услуги. */
 import { z } from 'zod';
-import { PRODUCT_KINDS, VAT_RATES } from '../constants';
+import { countryVatRate } from './countries';
+import { PRODUCT_KINDS } from '../constants';
 import { FIELD_KEY_RE, FIELD_TYPES, type FieldType } from '../fields';
 import { clientId, decimal, listQuery, queryBool, shortText, toPatch, uuid } from './common';
 import { checkFieldOptions, customData, fieldOptions } from './meta';
@@ -70,7 +71,7 @@ export const productCreate = z.object({
     .regex(/^(\d{8,14})?$/, 'Barcode: 8–14 digits')
     .default(''),
   unitCode: z.string().trim().regex(/^\d{3,4}$/, 'OKEI code: 3–4 digits').default('796'),
-  vatRate: z.enum(VAT_RATES).default('20'),
+  vatRate: countryVatRate.optional(),
   /** Цена продажи */
   price: money.default('0'),
   purchasePrice: money.default('0'),

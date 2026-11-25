@@ -184,7 +184,7 @@ export const catalog = {
 
 /** Подписи значений из @erp/shared (VAT_LABELS, FIELD_TYPE_LABELS, …): переводятся по значению, без перевода — подпись из shared */
 export const enums = {
-  vat: { none: 'No VAT' },
+  vat: { none: 'No VAT', exempt: 'Exempt' },
   /** Периодичность биллинга по договору (месяц / квартал / год) — см. BILLING_PERIODICITY_LABELS в @erp/shared */
   periodicity: { month: 'Monthly', quarter: 'Quarterly', year: 'Yearly' },
   replenishment: { purchase: 'Purchase', production: 'Production', transfer: 'Transfer' },
@@ -211,6 +211,7 @@ export const enums = {
   printForm: {
     quote: 'Commercial proposal',
     invoice: 'Invoice for payment',
+    vat_invoice: "VAT invoice",
     upd: 'UPD',
     act: 'Service act',
     torg12: 'TORG-12',

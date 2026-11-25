@@ -1,10 +1,13 @@
 /* zod-схемы документов, организаций, складов, банковских счетов и склада (остатки, движения, настройки). */
 import { z } from 'zod';
-import { VAT_RATES } from '../constants';
+import { getCountryPack, isValidKzIban } from '../countries';
+import { isValidSwiftBic } from '../countries/bank';
+import { checkCountryRequisites, countryRequisiteFields, countryTaxSystem, countryVatRate } from './countries';
 import { COST_DISTRIBUTIONS } from '../cost-closing';
 import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_OPERATIONS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TOLLING_ROLES, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
-import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
+import { COMPANY_KINDS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
+import { originCountryDetails } from '../origin-country';
 import { customData } from './meta';
 
 const nonNeg = (max = 1e13) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
@@ -29,7 +32,8 @@ export type FileRef = z.infer<typeof fileRef>;
 
 /* ---------------- организации воркспейса ---------------- */
 
-export const organizationCreate = z.object({
+const organizationFields = z.object({
+  ...countryRequisiteFields,
   id: clientId,
   /** Краткое название — в списках и шапках: ООО «Гр8р Студия» */
   name: shortText,
@@ -46,23 +50,52 @@ export const organizationCreate = z.object({
   directorName: z.string().trim().max(200).default(''),
   directorTitle: z.string().trim().max(200).default('Генеральный директор'),
   accountantName: z.string().trim().max(200).default(''),
-  taxSystem: z.enum(TAX_SYSTEMS).default('osn'),
+  taxSystem: countryTaxSystem.optional(),
   /** Ставка НДС по умолчанию для новых строк документов организации */
-  defaultVatRate: z.enum(VAT_RATES).default('20'),
+  defaultVatRate: countryVatRate.optional(),
   stampFile: fileRef.default(null),
   directorSignatureFile: fileRef.default(null),
   accountantSignatureFile: fileRef.default(null),
   isDefault: z.boolean().optional(),
 });
-export const organizationUpdate = toPatch(organizationCreate.omit({ id: true }));
+export const organizationCreate = organizationFields.superRefine((value, ctx) => {
+  checkCountryRequisites(value, ctx);
+  const pack = getCountryPack(value.country);
+  if (value.taxSystem !== undefined && !pack.taxSystems.includes(value.taxSystem)) {
+    ctx.addIssue({ code: 'custom', path: ['taxSystem'], message: 'Tax system is unavailable for this country' });
+  }
+  if (value.defaultVatRate !== undefined && !pack.vatRates.includes(value.defaultVatRate)) {
+    ctx.addIssue({ code: 'custom', path: ['defaultVatRate'], message: 'VAT rate is unavailable for this country' });
+  }
+}).transform(value => {
+  const pack = getCountryPack(value.country);
+  return {
+    ...value,
+    taxSystem: value.taxSystem ?? countryTaxSystem.parse(pack.taxSystems[0]),
+    defaultVatRate: value.defaultVatRate ?? countryVatRate.parse(pack.defaultVatRate),
+  };
+});
+export const organizationUpdate = toPatch(organizationFields.omit({ id: true }));
 export const organizationQuery = listQuery;
 
 /* ---------------- банковские счета ---------------- */
 
+const ruBankBik = z.string().trim().regex(/^04\d{7}$/, 'BIK: 9 digits, starts with 04');
+const ruBankAccount = z.string().trim().regex(/^\d{20}$/, 'Account: 20 digits');
+const kzBankBik = z.string().trim().refine(isValidSwiftBic, 'Invalid SWIFT/BIC');
+const kzBankAccount = z.string().trim().refine(isValidKzIban, 'Invalid Kazakhstan IBAN');
+
+export function bankAccountRequisites(country: string) {
+  return z.object({
+    bik: country === 'KZ' ? kzBankBik : ruBankBik,
+    account: country === 'KZ' ? kzBankAccount : ruBankAccount,
+  });
+}
+
 export const bankAccountCreate = z.object({
   id: clientId,
-  bik: z.string().trim().regex(/^04\d{7}$/, 'BIK: 9 digits, starts with 04'),
-  account: z.string().trim().regex(/^\d{20}$/, 'Account: 20 digits'),
+  bik: z.union([ruBankBik, kzBankBik]),
+  account: z.union([ruBankAccount, kzBankAccount]),
   corrAccount: z.string().trim().regex(/^(\d{20})?$/, 'Correspondent account: 20 digits').default(''),
   bankName: shortText,
   isDefault: z.boolean().optional(),
@@ -82,9 +115,31 @@ export const warehouseCreate = z.object({
   /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
   counterpartyId: uuid.nullish(),
   isDefault: z.boolean().optional(),
+  useBins: z.boolean().default(false),
 });
 export const warehouseUpdate = toPatch(warehouseCreate.omit({ id: true }));
 export const warehouseQuery = listQuery;
+
+const binLabel = z.string().trim().max(100).default('');
+export const warehouseBinCreate = z.object({
+  code: z.string().trim().min(1).max(64).regex(/^[^\p{Cc}]+$/u),
+  name: binLabel,
+  zone: binLabel,
+  rack: binLabel,
+  shelf: binLabel,
+  cell: binLabel,
+  parentId: uuid.nullish(),
+  active: z.boolean().default(true),
+});
+export const warehouseBinUpdate = toPatch(warehouseBinCreate);
+export type WarehouseBinInput = z.output<typeof warehouseBinCreate>;
+export type WarehouseBinPatch = z.output<typeof warehouseBinUpdate>;
+
+const gtdNumber = z.string().trim().max(100).regex(/^[\p{L}\p{N}/. -]+$/u).nullish();
+const originCountry = z.string().trim().max(150)
+  .refine(value => originCountryDetails(value) !== null, 'Use a country code or a country name followed by its numeric code')
+  .transform(value => /^[a-z]{2}$/i.test(value) ? value.toUpperCase() : value)
+  .nullish();
 
 /* ---------------- статьи затрат и доходов ---------------- */
 
@@ -105,6 +160,8 @@ export const costItemQuery = listQuery.extend({ kind: z.enum(COST_ITEM_KINDS).op
 export const paramValues = z.record(z.string().max(40), z.union([z.number().finite(), z.string().max(200), z.boolean()]));
 
 /* ---------------- документы ---------------- */
+
+export const documentCustomsFields = z.object({ gtdNumber, originCountry });
 
 export const documentLineInput = z
   .object({
@@ -131,7 +188,7 @@ export const documentLineInput = z
         Клиент передаёт true, когда пользователь сам поменял discountPct в форме; иначе источник не трогаем. */
     discountManual: z.boolean().optional(),
     /** Пусто — ставка товара */
-    vatRate: z.enum(VAT_RATES).optional(),
+    vatRate: countryVatRate.optional(),
     /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
     bookQty: nonNeg().optional(),
     /** Принятое количество (перемещение «в пути»): не больше отправленного */
@@ -154,6 +211,9 @@ export const documentLineInput = z
     /** Серийные номера строки (товары с учётом по номерам): список заменяет прежние */
     serials: z.array(z.string().trim().min(1).max(100)).max(2000).optional(),
     /** Партия строки (задача 1187): номер партии прихода */
+    binId: uuid.nullish(),
+    toBinId: uuid.nullish(),
+    ...documentCustomsFields.shape,
     batchNumber: z.string().trim().max(100).nullish(),
     /** Дата выработки партии */
     batchProducedAt: isoDate.nullish(),
@@ -172,6 +232,8 @@ export const documentCreate = z.object({
   type: z.enum(DOCUMENT_TYPES),
   /** Пусто — организация по умолчанию */
   organizationId: uuid.nullish(),
+  /** Пусто — валюта страны организации. */
+  currency: z.string().trim().regex(/^[A-Z]{3}$/, 'Use a three-letter currency code').optional(),
   counterpartyId: uuid.nullish(),
   /** Договор: пусто — договор по умолчанию контрагента */
   contractId: uuid.nullish(),

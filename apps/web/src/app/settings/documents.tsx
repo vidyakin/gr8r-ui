@@ -2,14 +2,16 @@
    ссылкой), склады — места хранения; здесь же настройка «разрешить отрицательный остаток». Меняет admin и выше. */
 import * as React from 'react';
 import { Archive, Building2, Plus, Star, Tags, Warehouse as WarehouseIcon } from 'lucide-react';
-import { COST_DISTRIBUTIONS, COST_DISTRIBUTION_LABELS, TAX_SYSTEMS, TAX_SYSTEM_LABELS, VAT_LABELS, VAT_RATES, type CostDistribution, type CostItemKind, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@erp/shared';
-import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsContent, TabsList, toast } from '@/components/ui';
+import { COST_DISTRIBUTIONS, COST_DISTRIBUTION_LABELS, getCountryPack, type CostDistribution, type CostItemKind, type FileRef, type CountryCode, type CountryRequisites, type WarehouseKind } from '@erp/shared';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Switch, Tab, Tabs, TabsContent, TabsList, toast } from '@/components/ui';
 import { useCompanies, useIsAdmin } from '../catalog/data';
-import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
+import { BankAccountsEditor, CountryField, CountryRequisiteFields, RequisitesFields, checkCountryRequisiteFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
 import { useCostItems, useDocsApi, useInventorySettings, useOrganizations, useWarehouses, type CostItem, type Organization, type Warehouse } from '../docs/data';
+import { vatLabel } from '../docs/vat';
 import { useIndustry } from '../industry/data';
+import { WarehouseBinsDialog } from './warehouse-bins';
 import { SettingsHead, SRow, Toggle } from './parts';
-import { t as tFn, hasKey, tEnum, useT, type TKey } from '@/i18n';
+import { t as tFn, hasKey, useT, type TKey } from '@/i18n';
 
 /** Подпись значения из settings.enums.* с локальным fallback (для случая, когда справочник шире словаря) */
 function enumLabel(group: 'costItem' | 'warehouseKind' | 'costDistribution' | 'taxSystem' | 'materialPriceSource' | 'workOrderStateCategory', value: string, fallback: string): string {
@@ -61,8 +63,11 @@ export function OrganizationsSection({ title }: { title: string }) {
                     <OpenTitle name={o.name} label={t('settings.organizations.edit', { name: o.name })} onOpen={isAdmin ? () => setDialog({ org: o }) : undefined} /> {o.isDefault && <Badge tone="accent">{t('settings.organizations.default')}</Badge>}
                   </div>
                   <div className="d">
-                    {o.inn ? t('settings.organizations.innKpp', { inn: o.inn }) : t('settings.organizations.noInn')}
-                    {o.kpp ? ` · ${t('settings.organizations.kpp', { kpp: o.kpp })}` : ''} · {enumLabel('taxSystem', o.taxSystem, TAX_SYSTEM_LABELS[o.taxSystem])} · {t('settings.organizations.vat', { rate: tEnum('vat', o.defaultVatRate, VAT_LABELS[o.defaultVatRate]) })}
+                    {o.country === 'RU' ? <>
+                      {o.inn ? t('settings.organizations.innKpp', { inn: o.inn }) : t('settings.organizations.noInn')}
+                      {o.kpp ? ` · ${t('settings.organizations.kpp', { kpp: o.kpp })}` : ''}
+                    </> : t(`docs.requisites.countries.${o.country}`)}
+                    {' · '}{enumLabel('taxSystem', o.taxSystem, o.taxSystem)}{' · '}{t('settings.organizations.vat', { rate: vatLabel(getCountryPack(o.country), o.defaultVatRate) })}
                   </div>
                 </div>
                 {isAdmin && (
@@ -118,6 +123,12 @@ function FileLink({ label, value, onChange, error }: { label: string; value: { n
 function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () => void }) {
   const t = useT();
   const api = useDocsApi();
+  const [country, setCountry] = React.useState<CountryCode>(org?.country ?? 'RU');
+  const pack = getCountryPack(country);
+  const [requisitesByCountry, setRequisitesByCountry] = React.useState<Partial<Record<CountryCode, CountryRequisites>>>(() =>
+    org ? { [org.country]: org.requisites } : {},
+  );
+  const requisites = requisitesByCountry[country] ?? {};
   const [f, setF] = React.useState({
     name: org?.name ?? '',
     fullName: org?.fullName ?? '',
@@ -126,8 +137,8 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
     directorName: org?.directorName ?? '',
     directorTitle: org?.directorTitle ?? '',
     accountantName: org?.accountantName ?? '',
-    taxSystem: (org?.taxSystem ?? 'osn') as TaxSystem,
-    defaultVatRate: (org?.defaultVatRate ?? '20') as VatRate,
+    taxSystem: org?.taxSystem ?? pack.taxSystems[0]!,
+    defaultVatRate: org?.defaultVatRate ?? pack.defaultVatRate,
     isDefault: org?.isDefault ?? false,
   });
   const [req, setReq] = React.useState<RequisitesValue>({ kind: org?.kind ?? 'legal', inn: org?.inn ?? '', kpp: org?.kpp ?? '', ogrn: org?.ogrn ?? '', legalAddress: org?.legalAddress ?? '', actualAddress: org?.actualAddress ?? '' });
@@ -138,14 +149,27 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
   const [busy, setBusy] = React.useState(false);
   const [tab, setTab] = React.useState<'main' | 'files' | 'accounts'>('main');
 
+  const changeCountry = (value: CountryCode) => {
+    if (value === country) return;
+    const next = getCountryPack(value);
+    setCountry(value);
+    setF(current => ({
+      ...current,
+      taxSystem: value === org?.country ? org.taxSystem : next.taxSystems[0]!,
+      defaultVatRate: value === org?.country ? org.defaultVatRate : next.defaultVatRate,
+    }));
+    setErr({});
+  };
+
   const submit = async () => {
-    const errs: Record<string, string> = { ...checkRequisites(req) };
+    if (busy) return;
+    const errs = country === 'RU' ? checkRequisites(req) : checkCountryRequisiteFields(country, requisites, t('docs.requisites.countryFieldInvalid'));
     if (!f.name.trim()) errs.name = t('settings.organizations.fields.nameRequired');
     setErr(errs);
     // ошибки только в полях «Основного» — показать вкладку с ними
     if (Object.keys(errs).length) return setTab('main');
     setBusy(true);
-    const body = { ...f, name: f.name.trim(), fullName: f.fullName.trim() || f.name.trim(), ...req, stampFile: fileBody(stamp), directorSignatureFile: fileBody(dirSig), accountantSignatureFile: fileBody(accSig) };
+    const body = { ...f, country, requisites, name: f.name.trim(), fullName: f.fullName.trim() || f.name.trim(), ...req, stampFile: fileBody(stamp), directorSignatureFile: fileBody(dirSig), accountantSignatureFile: fileBody(accSig) };
     const r = org ? await api('PATCH', `/organizations/${org.id}`, body) : await api('POST', '/organizations', body);
     setBusy(false);
     if (!r) return;
@@ -182,7 +206,7 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
             <TabsList aria-label={t('settings.organizations.tabs.label')}>
               <Tab value="main">{t('settings.organizations.tabs.main')}</Tab>
               <Tab value="files">{t('settings.organizations.tabs.files')}</Tab>
-              <Tab value="accounts">{t('settings.organizations.tabs.accounts')}</Tab>
+              {country !== 'AE' && <Tab value="accounts">{t('settings.organizations.tabs.accounts')}</Tab>}
             </TabsList>
             <TabsContent value="main" className="stack" style={{ gap: 12, marginTop: 12 }}>
               <Field label={t('settings.organizations.fields.name')} error={err.name} hint={t('settings.organizations.fields.nameHint')}>
@@ -191,7 +215,12 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
               <Field label={t('settings.organizations.fields.fullName')} hint={t('settings.organizations.fields.fullNameHint')}>
                 {p => <Input {...p} value={f.fullName} placeholder={f.name} onChange={e => setF({ ...f, fullName: e.target.value })} />}
               </Field>
-              <RequisitesFields value={req} errors={err} onChange={patch => (setReq(r => ({ ...r, ...patch })), setErr({}))} />
+              <CountryField value={country} onChange={changeCountry} />
+              <RequisitesFields country={country} value={req} errors={err} onChange={patch => (setReq(r => ({ ...r, ...patch })), setErr({}))} />
+              {country !== 'RU' && <CountryRequisiteFields country={country} value={requisites} errors={err} onChange={value => {
+                setRequisitesByCountry(current => ({ ...current, [country]: value }));
+                setErr({});
+              }} />}
               <div className="row req-row">
                 <Field label={t('settings.organizations.fields.phone')} className="grow">
                   {p => <Input {...p} value={f.phone} onChange={e => setF({ ...f, phone: e.target.value })} />}
@@ -213,10 +242,10 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
               </div>
               <div className="row req-row">
                 <Field label={t('settings.organizations.fields.taxation')} className="grow">
-                  {p => <Select id={p.id} value={f.taxSystem} onValueChange={v => setF({ ...f, taxSystem: v as TaxSystem })} options={TAX_SYSTEMS.map(ts => ({ value: ts, label: enumLabel('taxSystem', ts, TAX_SYSTEM_LABELS[ts]) }))} />}
+                  {p => <Select id={p.id} value={f.taxSystem} onValueChange={v => setF({ ...f, taxSystem: v })} options={pack.taxSystems.map(ts => ({ value: ts, label: enumLabel('taxSystem', ts, ts) }))} />}
                 </Field>
                 <Field label={t('settings.organizations.fields.defaultVat')} className="grow">
-                  {p => <Select id={p.id} value={f.defaultVatRate} onValueChange={v => setF({ ...f, defaultVatRate: v as VatRate })} options={VAT_RATES.map(v => ({ value: v, label: tEnum('vat', v, VAT_LABELS[v]) }))} />}
+                  {p => <Select id={p.id} value={f.defaultVatRate} onValueChange={v => setF({ ...f, defaultVatRate: v })} options={pack.vatRates.map(v => ({ value: v, label: vatLabel(pack, v) }))} />}
                 </Field>
               </div>
               <SRow t={t('settings.organizations.fields.defaultOrg')} d={t('settings.organizations.fields.defaultOrgHint')}>
@@ -228,12 +257,12 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
               <FileLink label={t('settings.organizations.file.directorSig')} value={dirSig} onChange={setDirSig} />
               <FileLink label={t('settings.organizations.file.accountantSig')} value={accSig} onChange={setAccSig} />
             </TabsContent>
-            <TabsContent value="accounts" style={{ marginTop: 12 }}>
+            {country !== 'AE' && <TabsContent value="accounts" style={{ marginTop: 12 }}>
               <div className="field">
                 <span className="label">{t('settings.organizations.fields.bankAccounts')}</span>
-                {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} canEdit /> : <p className="faint" style={{ margin: 0 }}>{t('settings.organizations.fields.bankAccountsHint')}</p>}
+                {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} country={org.country} canEdit /> : <p className="faint" style={{ margin: 0 }}>{t('settings.organizations.fields.bankAccountsHint')}</p>}
               </div>
-            </TabsContent>
+            </TabsContent>}
           </Tabs>
           <button type="submit" hidden />
         </form>
@@ -417,6 +446,7 @@ export function WarehousesSection({ title }: { title: string }) {
   const settings = useInventorySettings();
   const api = useDocsApi();
   const [dialog, setDialog] = React.useState<{ wh?: Warehouse } | null>(null);
+  const [binsWarehouse, setBinsWarehouse] = React.useState<Warehouse | null>(null);
   const [archiving, setArchiving] = React.useState<Warehouse | null>(null);
   const items = (list.data ?? []).filter(w => !w.archivedAt);
 
@@ -449,20 +479,19 @@ export function WarehousesSection({ title }: { title: string }) {
                   </div>
                   <div className="d">{w.address || t('settings.warehouses.noAddress')}</div>
                 </div>
-                {isAdmin && (
-                  <div className="row" style={{ gap: 2 }}>
-                    {!w.isDefault && (
+                <div className="row" style={{ gap: 2 }}>
+                  {w.useBins && <Button size="sm" variant="secondary" onClick={() => setBinsWarehouse(w)}>{t('settings.warehouses.bins.list')}</Button>}
+                  {isAdmin && !w.isDefault && (
+                    <>
                       <IconButton size="xs" label={t('settings.warehouses.makeDefault', { name: w.name })} onClick={() => void api('PATCH', `/warehouses/${w.id}`, { isDefault: true })}>
                         <Star size={14} />
                       </IconButton>
-                    )}
-                    {!w.isDefault && (
                       <IconButton size="xs" label={t('settings.warehouses.archive', { name: w.name })} onClick={() => setArchiving(w)}>
                         <Archive size={14} />
                       </IconButton>
-                    )}
-                  </div>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -484,6 +513,7 @@ export function WarehousesSection({ title }: { title: string }) {
           </Alert>
         )}
       </div>
+      {binsWarehouse && <WarehouseBinsDialog warehouse={binsWarehouse} editable={isAdmin} onClose={() => setBinsWarehouse(null)} />}
       {dialog && <WarehouseDialog wh={dialog.wh} onClose={() => setDialog(null)} />}
       <ConfirmDialog
         open={!!archiving}
@@ -512,6 +542,7 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
   const [name, setName] = React.useState(wh?.name ?? '');
   const [code, setCode] = React.useState(wh?.code ?? '');
   const [address, setAddress] = React.useState(wh?.address ?? '');
+  const [useBins, setUseBins] = React.useState(wh?.useBins ?? false);
   const [kind, setKind] = React.useState<WarehouseKind>(wh?.kind ?? 'warehouse');
   const quarantine = food || kind === 'quarantine';
   // склад контрагента: на стороне переработчика хранятся наши материалы, отданные ему в переработку
@@ -521,7 +552,7 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
   const submit = async () => {
     if (!name.trim()) return setErr(t('settings.warehouses.dialog.fields.nameRequired'));
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), address: address.trim(), kind, counterpartyId: counterpartyId || null };
+    const body = { name: name.trim(), code: code.trim(), address: address.trim(), kind, useBins, counterpartyId: counterpartyId || null };
     const r = wh ? await api('PATCH', `/warehouses/${wh.id}`, body) : await api('POST', '/warehouses', body);
     setBusy(false);
     if (!r) return;
@@ -579,6 +610,9 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
               </select>
             )}
           </Field>
+          <SRow t={t('settings.warehouses.bins.enable')}>
+            <Switch checked={useBins} onChange={e => setUseBins(e.target.checked)} aria-label={t('settings.warehouses.bins.enable')} />
+          </SRow>
           <button type="submit" hidden />
         </form>
       </DialogContent>

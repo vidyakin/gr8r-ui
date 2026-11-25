@@ -307,27 +307,37 @@ async function putVersion(db: Db, a: { workspaceId: string; memberId: string | n
   }
 }
 
+async function createStoredAttachment(db: Db, a: { workspaceId: string; memberId: string | null }, entityType: AttachmentEntityType, entityId: string, input: UploadInput, supplierPortalCompanyId?: string) {
+  await assertRoom(db, a.workspaceId, input.data.length);
+  const [att] = await db
+    .insert(attachments)
+    .values({ workspaceId: a.workspaceId, entityType, entityId, name: input.name, kind: fileKindOf(input.name), currentVersion: 1, createdBy: a.memberId, supplierPortalCompanyId })
+    .returning();
+  const version = await putVersion(db, a, att!.id, 1, input);
+  await recordEvent(db, { workspaceId: a.workspaceId, type: 'attachment.created', entity: 'attachment', recordId: att!.id, actorId: a.memberId, payload: { entityType, entityId, name: input.name, size: input.data.length } });
+  return { attachment: att!, version };
+}
+
+/** Сервис кабинета проверяет и блокирует заказ перед сохранением файла. */
+export function createSupplierInvoiceAttachment(db: Db, workspaceId: string, companyId: string, orderId: string, input: UploadInput) {
+  return createStoredAttachment(db, { workspaceId, memberId: null }, 'document', orderId, input, companyId);
+}
+
 /** Новое вложение: версия 1. Нужно право на запись в объект */
 export async function createAttachment(db: Db, a: Actor, entityType: string, entityId: string, input: UploadInput): Promise<{ attachment: Attachment; version: AttachmentVersion }> {
   if (!isEntityType(entityType)) throw new DomainError(400, 'bad_request', 'Unknown entity type');
   const acc = await entityAccess(db, a, entityType, entityId);
   if (acc === 'none') throw new DomainError(404, 'not_found', 'Object not found');
   if (acc !== 'write') throw new DomainError(403, 'forbidden', 'No permission to change this object');
-  await assertRoom(db, a.workspaceId, input.data.length);
-  const [att] = await db
-    .insert(attachments)
-    .values({ workspaceId: a.workspaceId, entityType, entityId, name: input.name, kind: fileKindOf(input.name), currentVersion: 1, createdBy: a.memberId })
-    .returning();
-  const version = await putVersion(db, a, att!.id, 1, input);
-  await recordEvent(db, { workspaceId: a.workspaceId, type: 'attachment.created', entity: 'attachment', recordId: att!.id, actorId: a.memberId, payload: { entityType, entityId, name: input.name, size: input.data.length } });
+  const result = await createStoredAttachment(db, a, entityType, entityId, input);
   // первая картинка товара становится основной (задача 1192)
   if (entityType === 'product' && (input.mime ?? '').startsWith('image/')) {
     await db
       .update(products)
-      .set({ imageAttachmentId: att!.id, updatedAt: new Date() })
+      .set({ imageAttachmentId: result.attachment.id, updatedAt: new Date() })
       .where(and(eq(products.id, entityId), eq(products.workspaceId, a.workspaceId), isNull(products.imageAttachmentId)));
   }
-  return { attachment: att!, version };
+  return result;
 }
 
 /** Приём письма воркером: без автора, с теми же ограничениями файла и квоты, что при загрузке пользователем. */
@@ -335,14 +345,7 @@ export async function createInboundAttachment(db: Db, workspaceId: string, email
   const [message] = await db.select({ id: emailMessages.id }).from(emailMessages)
     .where(and(eq(emailMessages.id, emailId), eq(emailMessages.workspaceId, workspaceId), eq(emailMessages.direction, 'in')));
   if (!message) throw new DomainError(404, 'not_found', 'Incoming email not found');
-  await assertRoom(db, workspaceId, input.data.length);
-  const [att] = await db.insert(attachments).values({
-    workspaceId, entityType: 'email', entityId: emailId, name: input.name,
-    kind: fileKindOf(input.name), currentVersion: 1, createdBy: null,
-  }).returning();
-  const version = await putVersion(db, { workspaceId, memberId: null }, att!.id, 1, input);
-  await recordEvent(db, { workspaceId, type: 'attachment.created', entity: 'attachment', recordId: att!.id, actorId: null, payload: { entityType: 'email', entityId: emailId, name: input.name, size: input.data.length } });
-  return { attachment: att!, version };
+  return createStoredAttachment(db, { workspaceId, memberId: null }, 'email', emailId, input);
 }
 
 /** Новая версия поверх файла; имя вложения остаётся (если не передано новое) */

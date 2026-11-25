@@ -25,6 +25,7 @@ import {
   type VatRate,
 } from '@erp/shared';
 import { addDays } from '@erp/shared';
+import { organizationVatDefaults } from './organizations';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -157,8 +158,9 @@ export async function computeContractBilling(db: Db, workspaceId: string, contra
   const facts = await collectFacts(db, workspaceId, contract, factPeriod);
   const productIds = [...new Set([...planLines.map(l => l.productId), ...facts.map(f => f.productId), ...planLines.map(l => l.invoiceAsProductId).filter((x): x is string => !!x)])];
   const productRows = productIds.length ? await db.select().from(products).where(inArray(products.id, productIds)) : [];
+  const { pack, defaultVatRate } = await organizationVatDefaults(db, contract.organizationId);
   const catalog: Record<string, BillingProduct> = {};
-  for (const p of productRows) catalog[p.id] = { id: p.id, name: p.name, unitCode: p.unitCode, vatRate: p.vatRate, price: p.price };
+  for (const p of productRows) catalog[p.id] = { id: p.id, name: p.name, unitCode: p.unitCode, vatRate: pack.vatRates.includes(p.vatRate) ? p.vatRate : defaultVatRate, price: p.price };
   const computation = computeBilling({
     tariffLines: planLines,
     facts,
