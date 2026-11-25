@@ -7,6 +7,11 @@ import { alias } from 'drizzle-orm/pg-core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  assertBinsCanBeDisabled,
+  createWarehouseBin,
+  listWarehouseBins,
+  listBinBalances,
+  updateWarehouseBin,
   bankAccounts,
   counterpartyCodes,
   productPartnerArticles,
@@ -52,6 +57,7 @@ import {
   stockReservations,
   unpostDocument,
   updateDocument,
+  warehouseBins,
   warehouses,
   workspaces,
   workCenters,
@@ -111,6 +117,8 @@ import {
   stockBalanceQuery,
   stockMoveQuery,
   validateRequisites,
+  warehouseBinCreate,
+  warehouseBinUpdate,
   warehouseCreate,
   warehouseQuery,
   warehouseUpdate,
@@ -192,6 +200,7 @@ export const warehouseRoutes = crud({
     return { isDefault };
   },
   prepareUpdate: async (ctx, existing, body) => {
+    if (body.useBins === false && existing.useBins) await assertBinsCanBeDisabled(ctx.db, { workspaceId: ctx.workspaceId, warehouseId: existing.id });
     if (body.isDefault === true) await clearDefault(ctx, warehouses, existing.id);
     if (body.isDefault === false && existing.isDefault) throw new AppError(422, 'default_required', 'Make another warehouse the default instead');
     return {};
@@ -199,12 +208,36 @@ export const warehouseRoutes = crud({
   beforeDelete: async (ctx, row) => {
     const [left] = await ctx.db.select({ id: stockBalances.productId }).from(stockBalances).where(and(eq(stockBalances.warehouseId, row.id), sql`${stockBalances.qty} <> 0`)).limit(1);
     if (left) throw new AppError(422, 'warehouse_not_empty', 'The warehouse still has stock: move or write it off first');
+    if (row.useBins) await assertBinsCanBeDisabled(ctx.db, { workspaceId: ctx.workspaceId, warehouseId: row.id });
     if (row.isDefault) {
       const [other] = await ctx.db.select({ id: warehouses.id }).from(warehouses).where(and(ne(warehouses.id, row.id), isNull(warehouses.archivedAt))).limit(1);
       if (other) throw new AppError(422, 'default_required', 'Make another warehouse the default before archiving this one');
     }
   },
-});
+})
+  .get('/:id/bins', zValidator('param', idParam, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    return c.json({ items: await listWarehouseBins(db, { workspaceId, warehouseId: c.req.valid('param').id }) });
+  })
+  .post('/:id/bins', admin, zValidator('param', idParam, validationHook), zValidator('json', warehouseBinCreate, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    return c.json(await createWarehouseBin(db, { workspaceId, warehouseId: c.req.valid('param').id }, c.req.valid('json'), memberId), 201);
+  })
+  .patch('/:id/bins/:binId', admin, zValidator('param', z.object({ id: uuid, binId: uuid }), validationHook), zValidator('json', warehouseBinUpdate, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    const { id, binId } = c.req.valid('param');
+    return c.json(await updateWarehouseBin(db, { workspaceId, warehouseId: id }, binId, c.req.valid('json'), memberId));
+  })
+  .delete('/:id/bins/:binId', admin, zValidator('param', z.object({ id: uuid, binId: uuid }), validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    const { id, binId } = c.req.valid('param');
+    await updateWarehouseBin(db, { workspaceId, warehouseId: id }, binId, { active: false }, memberId, true);
+    return c.json({ ok: true });
+  })
+  .get('/:id/bin-balances', zValidator('param', idParam, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    return c.json({ items: await listBinBalances(db, { workspaceId, warehouseId: c.req.valid('param').id }) });
+  });
 
 /* ---------------- банковские счета ---------------- */
 
@@ -834,6 +867,10 @@ export const stockRoutes = new Hono<AppEnv>()
         id: stockMoves.id,
         seq: stockMoves.seq,
         warehouseId: stockMoves.warehouseId,
+        workspaceId: stockMoves.workspaceId,
+        binId: stockMoves.binId,
+        gtdNumber: stockMoves.gtdNumber,
+        originCountry: stockMoves.originCountry,
         productId: stockMoves.productId,
         documentId: stockMoves.documentId,
         qty: stockMoves.qty,
@@ -852,6 +889,10 @@ export const stockRoutes = new Hono<AppEnv>()
         seq: inner.seq,
         warehouseId: inner.warehouseId,
         warehouseName: warehouses.name,
+        binId: inner.binId,
+        binCode: warehouseBins.code,
+        gtdNumber: inner.gtdNumber,
+        originCountry: inner.originCountry,
         productId: inner.productId,
         documentId: inner.documentId,
         documentType: documents.type,
@@ -864,6 +905,7 @@ export const stockRoutes = new Hono<AppEnv>()
       .from(inner)
       .innerJoin(documents, eq(documents.id, inner.documentId))
       .innerJoin(warehouses, eq(warehouses.id, inner.warehouseId))
+      .leftJoin(warehouseBins, and(eq(warehouseBins.workspaceId, inner.workspaceId), eq(warehouseBins.id, inner.binId)))
       .where(q.documentId ? eq(inner.documentId, q.documentId) : undefined)
       .orderBy(desc(inner.seq))
       .limit(q.limit)

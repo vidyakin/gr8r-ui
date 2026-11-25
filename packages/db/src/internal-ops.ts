@@ -8,6 +8,7 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, STATE_HOOKS } from './document-hooks';
 import { applyDocumentMoves, type DocCtx, type DocumentLineRow, type DocumentRow } from './documents';
+import { assertSameWarehouseTransfer, resolveWarehouseBins } from './warehouse-bins';
 import { applyStockMoves, loadInventorySettings, revertStockMoves, type MoveRequest } from './stock';
 import { costItems, documentLines, documents, inUseBalances, inUseMoves, products, warehouses } from './schema';
 
@@ -71,8 +72,8 @@ async function shipTransfer(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Docume
   const goods = await goodsLines(db, lines);
   const reqs: MoveRequest[] = [];
   for (const l of goods) {
-    reqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out', transfer: true });
-    reqs.push({ warehouseId: transitId, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'in', costFromLine: true });
+    reqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out', transfer: true, binId: l.binId, gtdNumber: l.gtdNumber, originCountry: l.originCountry });
+    reqs.push({ warehouseId: transitId, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'in', costFromLine: true, gtdNumber: l.gtdNumber, originCountry: l.originCountry });
   }
   await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId));
   await db.update(documents).set({ state: 'shipped', updatedAt: new Date() }).where(eq(documents.id, doc.id));
@@ -96,8 +97,8 @@ async function receiveTransfer(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Doc
     if (qty < 0n || qty > dec(l.qty)) throw new DomainError(422, 'invalid_received_qty', `"${l.name}": the accepted quantity must not exceed the shipped one`);
     await db.update(documentLines).set({ receivedQty: fmt(qty, 3) }).where(eq(documentLines.id, l.id));
     if (qty <= 0n) continue;
-    reqs.push({ warehouseId: transitId, productId: l.productId, lineId: l.id, qty, direction: 'out', phase: 2, transfer: true });
-    reqs.push({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty, direction: 'in', costFromLine: true, phase: 2 });
+    reqs.push({ warehouseId: transitId, productId: l.productId, lineId: l.id, qty, direction: 'out', phase: 2, transfer: true, gtdNumber: l.gtdNumber, originCountry: l.originCountry });
+    reqs.push({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty, direction: 'in', costFromLine: true, phase: 2, binId: l.toBinId, gtdNumber: l.gtdNumber, originCountry: l.originCountry });
   }
   if (!reqs.length) throw new DomainError(422, 'nothing_received', 'Accept at least one line');
   await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId));
@@ -113,7 +114,7 @@ async function cancelReception(db: Db, ctx: DocCtx, doc: DocumentRow): Promise<v
 /** Передача в эксплуатацию: расход со склада (себестоимость — на статью затрат) и количественный учёт «у кого» */
 async function transferToOperation(db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[]): Promise<void> {
   const goods = await goodsLines(db, lines);
-  const reqs: MoveRequest[] = goods.map(l => ({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out' }));
+  const reqs: MoveRequest[] = goods.map(l => ({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out', binId: l.binId }));
   if (reqs.length) await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId));
   for (const l of goods) {
     await db.insert(inUseMoves).values({ workspaceId: ctx.workspaceId, documentId: doc.id, documentLineId: l.id, productId: l.productId, memberId: doc.inUseMemberId, workCenterId: doc.inUseWorkCenterId, qty: fmt(dec(l.qty), 3), movedAt: doc.date });
@@ -140,7 +141,12 @@ DOCUMENT_HOOKS.stock_transfer = {
     if (!goods.length) throw new DomainError(422, 'no_lines', 'Add at least one line before posting');
     // возврат из эксплуатации склад не меняет — склад ему не нужен
     if (doc.operation !== 'from_operation' && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse before posting');
-    if ((doc.operation === 'transfer' || doc.operation === 'in_transit') && (!doc.targetWarehouseId || doc.targetWarehouseId === doc.warehouseId)) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
+    if (doc.operation === 'transfer' || doc.operation === 'in_transit') {
+      await assertSameWarehouseTransfer(db, ctx.workspaceId, doc.operation, doc.warehouseId, doc.targetWarehouseId);
+      if (doc.operation === 'in_transit' && doc.targetWarehouseId) {
+        await resolveWarehouseBins(db, ctx.workspaceId, goods.map(l => ({ warehouseId: doc.targetWarehouseId!, binId: l.toBinId })));
+      }
+    }
     if (doc.operation === 'to_operation') {
       if (!doc.costItemId) throw new DomainError(422, 'cost_item_required', 'Select an expense cost item before posting');
       const [c] = await db.select({ kind: costItems.kind }).from(costItems).where(eq(costItems.id, doc.costItemId)).limit(1);

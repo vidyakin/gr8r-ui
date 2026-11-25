@@ -226,6 +226,7 @@ export const enums: Widen<typeof E> = {
   printForm: {
     quote: 'Коммерческое предложение',
     invoice: 'Счёт на оплату',
+    vat_invoice: "Счёт-фактура",
     upd: 'УПД',
     act: 'Акт оказанных услуг',
     torg12: 'ТОРГ-12',

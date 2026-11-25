@@ -7,7 +7,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftRight, Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Mail, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@erp/shared';
+import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, documentCustomsFields, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/erp/doc-form';
 import { LineUnitCell, rescalePrice, rescaleQty } from './line-unit';
@@ -20,7 +20,7 @@ import { useWorkspace } from '../data/store';
 import { PayControls } from '../money/PayControls';
 import { useSnapshot } from '../production/data';
 import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/WasteTab';
-import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCompanyArticleMap, useCostItems, useDocsApi, useDocTemplates, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
+import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCompanyArticleMap, useCostItems, useDocsApi, useDocTemplates, useDocument, useOrganizations, useProcessingOrders, useWarehouseBins, useWarehouses, type WarehouseBin, type DocDetail, type DocLink } from './data';
 import { QuoteVariants } from './quote-variants';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { StockMovesDialog } from './stock-moves-dialog';
@@ -85,6 +85,10 @@ interface FormLine {
   /** Ручная скидка (задача 1179): true — процент ввёл человек, false — вернуть автоскидке; пусто — не менялась. Уходит на сервер один раз */
   discountManual?: boolean;
   /** Партия строки (задача 1187): номер партии прихода и даты */
+  binId?: string | null;
+  toBinId?: string | null;
+  gtdNumber?: string;
+  originCountry?: string;
   batchNumber: string;
   batchProducedAt: string;
   batchExpiresAt: string;
@@ -167,7 +171,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor ?? '1', qty: trimNum(l.unitQty ?? l.qty), price: l.price ?? '0', discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor ?? '1', qty: trimNum(l.unitQty ?? l.qty), price: l.price ?? '0', discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', binId: l.binId ?? null, toBinId: l.toBinId ?? null, gtdNumber: l.gtdNumber ?? '', originCountry: l.originCountry ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
   };
 }
 
@@ -179,7 +183,8 @@ const lineErrors = (l: FormLine, allowZero = false): { qty?: boolean; price?: bo
   price: !isNum(l.price) || undefined,
   discountPct: !(l.discountPct.trim() === '' || (isNum(l.discountPct) && Number(num(l.discountPct)) <= 100)) || undefined,
 });
-const lineOk = (l: FormLine, allowZero = false) => !Object.values(lineErrors(l, allowZero)).some(Boolean);
+const customsOf = (l: FormLine) => ({ gtdNumber: l.gtdNumber?.trim() || null, originCountry: l.originCountry?.trim() || null });
+const lineOk = (l: FormLine, allowZero = false) => !Object.values(lineErrors(l, allowZero)).some(Boolean) && documentCustomsFields.safeParse(customsOf(l)).success;
 
 function toPayload(f: Form) {
   return {
@@ -209,7 +214,7 @@ function toPayload(f: Form) {
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), unitQty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim(), shipBy: l.shipBy || null, batchNumber: l.batchNumber.trim() || null, batchProducedAt: l.batchProducedAt.trim() || null, batchExpiresAt: l.batchExpiresAt.trim() || null })),
+      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), unitQty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim(), shipBy: l.shipBy || null, binId: l.binId, toBinId: l.toBinId, ...customsOf(l), batchNumber: l.batchNumber.trim() || null, batchProducedAt: l.batchProducedAt.trim() || null, batchExpiresAt: l.batchExpiresAt.trim() || null })),
   };
 }
 
@@ -314,10 +319,18 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const priceField = meta.party === 'supplier' ? 'purchasePrice' : 'price';
   /** Поступление: у строк-услуг можно указать статью косвенных затрат и участок */
   const isReceipt = doc.type === 'receipt';
-  const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
 
   const [labelsOpen, setLabelsOpen] = React.useState(false);
   const [form, setForm] = React.useState<Form>(() => toForm(doc));
+  const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
+  const sourceWithBins = (isReceipt || doc.type === 'realization' || doc.type === 'write_off' || doc.type === 'stock_posting' || doc.type === 'opening_stock' || (isTransfer && form.operation !== 'from_operation'))
+    && whOptions.some(w => w.id === form.warehouseId && w.useBins);
+  const destinationWithBins = isTransfer && (form.operation === 'transfer' || form.operation === 'in_transit')
+    && whOptions.some(w => w.id === form.targetWarehouseId && w.useBins);
+  const sourceBins = useWarehouseBins(sourceWithBins ? form.warehouseId : null);
+  const destinationBins = useWarehouseBins(destinationWithBins ? form.targetWarehouseId : null);
+  const hasCustoms = isReceipt || doc.type === 'realization';
+
   // номенклатура контрагента: артикул контрагента в строках закупок и продаж и подбор товара по нему
   const partnerId = meta.party !== null ? form.counterpartyId : null;
   const partnerArts = useCompanyArticleMap(partnerId);
@@ -393,7 +406,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const pickProduct = (key: string, row: number, p: Product) => {
     // у внутренних документов цена — себестоимость: её подставляет сервер
     if (!showTotals) return;
-    patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
+    patchLine(key, { ...(latest.current.lines.find(l => l.key === key)?.productId !== p.id ? { binId: null, toBinId: null, gtdNumber: '', originCountry: '' } : {}), productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
     focusReq.current = { row, col: 1 };
     // цена по виду цен документа на его дату (договор, контрагент, вид заказ-наряда…); карточка товара — пока ответа нет
     if (!internal && meta.party !== null) {
@@ -718,6 +731,28 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           <ProductField id={l.productId} name={l.name} dataCell={`${i}:0`} price={priceField} counterpartyId={partnerId} partnerArticles={partnerArts} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
                         ) : (
                           <ProductField id={l.productId} name={l.name} disabled onPick={() => undefined} />
+                        )}
+                        {l.productId && (!srv || srv.kind === 'goods') && (sourceWithBins || destinationWithBins || hasCustoms) && (
+                          <details className="mt-1 text-xs">
+                            <summary className="muted cursor-pointer">
+                              {t('docs.document.lineStockDetails')}
+                              {l.gtdNumber || l.originCountry ? ` · ${[l.gtdNumber, l.originCountry].filter(Boolean).join(' / ')}` : ''}
+                            </summary>
+                            <div className="grid gap-2 py-2">
+                              {sourceWithBins && <LineBinField label={t('docs.document.lineBin')} value={l.binId} query={sourceBins} editable={linesEditable} onChange={binId => patchLine(l.key, { binId })} />}
+                              {destinationWithBins && <LineBinField label={t('docs.document.lineToBin')} value={l.toBinId} query={destinationBins} editable={linesEditable} onChange={toBinId => patchLine(l.key, { toBinId })} />}
+                              {hasCustoms && (
+                                <>
+                                  <Field label={t('docs.document.lineGtd')} error={l.gtdNumber && !documentCustomsFields.shape.gtdNumber.safeParse(customsOf(l).gtdNumber).success ? t('docs.document.lineGtdInvalid') : undefined}>
+                                    {p => <Input {...p} value={l.gtdNumber ?? ''} readOnly={!linesEditable} maxLength={100} onChange={e => patchLine(l.key, { gtdNumber: e.target.value })} />}
+                                  </Field>
+                                  <Field label={t('docs.document.lineOrigin')} hint={t('docs.document.lineOriginHint')} error={l.originCountry && !documentCustomsFields.shape.originCountry.safeParse(customsOf(l).originCountry).success ? t('docs.document.lineOriginInvalid') : undefined}>
+                                    {p => <Input {...p} value={l.originCountry ?? ''} readOnly={!linesEditable} maxLength={150} onChange={e => patchLine(l.key, { originCountry: e.target.value })} />}
+                                  </Field>
+                                </>
+                              )}
+                            </div>
+                          </details>
                         )}
                         {l.productId && partnerArts.get(l.productId)?.article && (
                           <div className="mono faint" style={{ fontSize: 11 }} title={partnerArts.get(l.productId)?.name || undefined}>
@@ -1374,7 +1409,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 id={p.id}
                 disabled={!editable}
                 value={form.warehouseId ?? ''}
-                onValueChange={v => edit(f => ({ ...f, warehouseId: v }))}
+                onValueChange={v => edit(f => ({
+                  ...f,
+                  warehouseId: v,
+                  lines: f.lines.map(l => ({ ...l, binId: null })),
+                }))}
                 options={whOptions.map(w => ({ value: w.id, label: w.name }))}
                 placeholder={t('docs.document.selectWarehouse')}
                 aria-label={t('docs.header.warehouse')}
@@ -1389,7 +1428,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 id={p.id}
                 disabled={!editable}
                 value={form.operation}
-                onValueChange={v => edit(f => ({ ...f, operation: v }))}
+                onValueChange={v => edit(f => ({
+                  ...f, operation: v,
+                  ...(v === 'from_operation' || v === 'to_operation' || (v === 'in_transit' && f.targetWarehouseId === f.warehouseId)
+                    ? { targetWarehouseId: null, lines: f.lines.map(l => ({ ...l, ...(v === 'from_operation' ? { binId: null } : {}), toBinId: null })) }
+                    : {}),
+                }))}
                 options={TRANSFER_OPERATIONS.map(o => ({ value: o, label: operationLabel(o) }))}
                 aria-label={t('docs.document.kindOfTransfer')}
               />
@@ -1440,8 +1484,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 id={p.id}
                 disabled={!editable}
                 value={form.targetWarehouseId ?? ''}
-                onValueChange={v => edit(f => ({ ...f, targetWarehouseId: v }))}
-                options={whOptions.filter(w => w.id !== form.warehouseId).map(w => ({ value: w.id, label: w.name }))}
+                onValueChange={v => edit(f => ({ ...f, targetWarehouseId: v, lines: f.lines.map(l => ({ ...l, toBinId: null })) }))}
+                options={whOptions.filter(w => w.id !== form.warehouseId || (isTransfer && form.operation === 'transfer' && w.useBins)).map(w => ({ value: w.id, label: w.name }))}
                 placeholder={t('docs.document.selectWarehouse')}
                 aria-label={t('docs.document.toWarehouse')}
               />
@@ -1826,5 +1870,37 @@ export function DocRef({ d }: { d: DocLink }) {
       <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
       {showTotals && d.total !== undefined && <span className="num muted">{money(d.total)}</span>}
     </span>
+  );
+}
+
+
+function LineBinField({ label, value, query, editable, onChange }: {
+  label: string;
+  value?: string | null;
+  query: { data?: WarehouseBin[]; isPending: boolean; isError: boolean; refetch: () => unknown };
+  editable: boolean;
+  onChange: (id: string | null) => void;
+}) {
+  const t = useT();
+  const options = (query.data ?? []).filter(bin => bin.active || bin.id === value).map(bin => ({
+    value: bin.id, label: bin.name ? `${bin.code} · ${bin.name}` : bin.code, disabled: !bin.active,
+  }));
+  const invalid = editable && value && query.data && !query.data.some(bin => bin.id === value && bin.active);
+  return (
+    <Field label={label} error={invalid ? t('errors.invalid_warehouse_bin') : undefined}>
+      {p => query.isError ? (
+        <Button id={p.id} size="sm" variant="secondary" onClick={() => void query.refetch()}>{t('common.retry')}</Button>
+      ) : (
+        <Select
+          {...p}
+          size="sm"
+          disabled={!editable || query.isPending}
+          value={value ?? 'none'}
+          onValueChange={id => onChange(id === 'none' ? null : id)}
+          placeholder={query.isPending ? t('common.loading') : '—'}
+          options={[{ value: 'none', label: t('docs.document.lineNoBin'), disabled: false }, ...options]}
+        />
+      )}
+    </Field>
   );
 }

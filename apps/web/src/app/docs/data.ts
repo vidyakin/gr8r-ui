@@ -56,6 +56,10 @@ export interface DocLine {
   /** Товар с партионным учётом (задача 1187) */
   trackBatches?: boolean;
   /** Партия строки (задача 1187) */
+  binId?: string | null;
+  toBinId?: string | null;
+  gtdNumber?: string | null;
+  originCountry?: string | null;
   batchNumber: string | null;
   batchProducedAt: string | null;
   batchExpiresAt: string | null;
@@ -359,10 +363,52 @@ export interface Warehouse {
   code: string;
   address: string;
   kind: WarehouseKind;
+  useBins: boolean;
   /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
   counterpartyId: string | null;
   isDefault: boolean;
   archivedAt: string | null;
+}
+
+export interface WarehouseBin {
+  id: string;
+  code: string;
+  name: string;
+  zone: string;
+  rack: string;
+  shelf: string;
+  cell: string;
+  parentId: string | null;
+  active: boolean;
+}
+
+export interface BinBalance {
+  binId: string;
+  code: string;
+  productId: string;
+  productName: string;
+  unitCode: string;
+  qty: string;
+}
+
+export function useWarehouseBins(warehouseId: string | null) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'warehouse-bins', warehouseId),
+    queryFn: async () => (await call<{ items: WarehouseBin[] }>(ws, 'GET', `/warehouses/${warehouseId}/bins`)).items,
+    enabled: !!warehouseId,
+    staleTime: Infinity,
+  });
+}
+
+export function useBinBalances(warehouseId: string | null) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'bin-balances', warehouseId),
+    queryFn: async () => (await call<{ items: BinBalance[] }>(ws, 'GET', `/warehouses/${warehouseId}/bin-balances`)).items,
+    enabled: !!warehouseId,
+    staleTime: Infinity,
+  });
 }
 
 export interface CostItem {

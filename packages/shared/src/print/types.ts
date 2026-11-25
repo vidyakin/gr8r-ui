@@ -33,6 +33,8 @@ export interface PrintOrganization extends PrintParty {
 
 export interface PrintLine {
   n: number;
+  gtdNumber?: string | null;
+  originCountry?: string | null;
   sku: string;
   name: string;
   /** Код ОКЕИ и обозначение единицы */

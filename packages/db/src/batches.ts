@@ -3,7 +3,7 @@
    расход списывается FEFO — по партиям с самой ранней датой истечения (без срока — последними).
    Вызывается из applyStockMoves: приходы помечаются batchId, расходы разбиваются по партиям.
    Себестоимость средняя по складу не меняется — партия задаёт только порядок списания и прослеживаемость. */
-import { and, asc, eq, gt, ilike, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { addDays, dec, fmt, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -33,7 +33,8 @@ export interface BatchLineInput {
 
 type BatchStatus = (typeof stockBatches.$inferSelect)['status'];
 type BatchDates = Pick<typeof stockBatches.$inferSelect, 'number' | 'producedAt' | 'expiresAt'>;
-type AvailableBatch = BatchDates & { id: string; qty: Dec; status: BatchStatus };
+type Customs = Pick<typeof stockMoves.$inferSelect, 'gtdNumber' | 'originCountry'>;
+type AvailableBatch = BatchDates & Customs & { id: string; qty: Dec; status: BatchStatus };
 
 /** Создаёт партию именно на складе движения. Вызывается под блокировкой остатка склада/товара. */
 async function receiptBatch(db: Db, workspaceId: string, r: MoveRequest, dates: BatchDates, status: BatchStatus): Promise<string> {
@@ -53,7 +54,7 @@ function blocked(batches: { number: string; status: BatchStatus }[], r: MoveRequ
 
 /** Распределяет FEFO под блокировками applyStockMoves. Перемещения сохраняют каждую
     порцию и даты, но получают отдельную партию на принимающем складе. */
-export async function assignBatches(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], lineBatches: Map<string, BatchLineInput>): Promise<MoveRequest[]> {
+export async function assignBatches(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], lineBatches: Map<string, BatchLineInput>, addressable: Set<string>): Promise<MoveRequest[]> {
   const tracked = await batchTrackedProducts(db, reqs.map(r => r.productId));
   if (!tracked.size) return reqs;
   const quarantine = await quarantineWarehouses(db, workspaceId);
@@ -67,6 +68,8 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
       id: stockBatches.id, warehouseId: stockBatches.warehouseId, productId: stockBatches.productId,
       number: stockBatches.number, status: stockBatches.status, producedAt: stockBatches.producedAt, expiresAt: stockBatches.expiresAt,
       qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)`,
+      gtdNumber: sql<string | null>`(select case when count(*) = count(m.gtd_number) and min(m.gtd_number) = max(m.gtd_number) then min(m.gtd_number) end from stock_moves m where m.batch_id = stock_batches.id and m.qty > 0)`,
+      originCountry: sql<string | null>`(select case when count(*) = count(m.origin_country) and min(m.origin_country) = max(m.origin_country) then min(m.origin_country) end from stock_moves m where m.batch_id = stock_batches.id and m.qty > 0)`,
     }).from(stockBatches).where(and(
       eq(stockBatches.workspaceId, workspaceId),
       inArray(stockBatches.productId, [...tracked.keys()]),
@@ -81,6 +84,25 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
       fefo.set(key, list);
     }
   }
+  // Для адресного отбора партия должна иметь остаток также в выбранной ячейке.
+  const locations = withdrawals.filter(r => addressable.has(r.warehouseId));
+  const localKey = (warehouseId: string, binId: string | null | undefined, batchId: string) => `${warehouseId}:${binId ?? ''}:${batchId}`;
+  const localQuantities = new Map<string, Dec>();
+  if (locations.length) {
+    const warehouses = [...new Set(locations.map(r => r.warehouseId))];
+    const bins = [...new Set(locations.flatMap(r => r.binId ? [r.binId] : []))];
+    const rows = await db.select({ warehouseId: stockMoves.warehouseId, binId: stockMoves.binId, batchId: stockMoves.batchId, qty: sql<string>`sum(${stockMoves.qty})` })
+      .from(stockMoves).where(and(
+        eq(stockMoves.workspaceId, workspaceId), inArray(stockMoves.warehouseId, warehouses), inArray(stockMoves.productId, [...tracked.keys()]),
+        or(bins.length ? inArray(stockMoves.binId, bins) : undefined, locations.some(r => !r.binId) ? isNull(stockMoves.binId) : undefined),
+      )).groupBy(stockMoves.warehouseId, stockMoves.binId, stockMoves.batchId);
+    for (const row of rows) if (row.batchId) localQuantities.set(localKey(row.warehouseId, row.binId, row.batchId), dec(row.qty));
+  }
+  const available = (r: MoveRequest, batch: AvailableBatch) => {
+    if (!addressable.has(r.warehouseId)) return batch.qty;
+    const local = localQuantities.get(localKey(r.warehouseId, r.binId, batch.id)) ?? 0n;
+    return local < batch.qty ? local : batch.qty;
+  };
   // Приёмка выбирает порции своей отправки. Общий FEFO склада «в пути» может
   // содержать тот же товар из других перемещений, включая более ранние партии.
   const shipped = withdrawals.some(r => r.phase === 2)
@@ -94,11 +116,17 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
     if (!tracked.has(r.productId)) { out.push(r); continue; }
     const portions: MoveRequest[] = [];
     let left = r.qty;
-    const take = (qty: Dec, batch?: AvailableBatch) => {
+    const take = (qty: Dec, batch?: AvailableBatch, customs: Customs | undefined = batch) => {
       if (qty <= 0n) return;
       left -= qty;
-      if (batch) batch.qty -= qty;
-      portions.push({ ...r, qty, batchId: batch?.id ?? null });
+      if (batch) {
+        batch.qty -= qty;
+        if (addressable.has(r.warehouseId)) {
+          const key = localKey(r.warehouseId, r.binId, batch.id);
+          localQuantities.set(key, (localQuantities.get(key) ?? 0n) - qty);
+        }
+      }
+      portions.push({ ...r, qty, batchId: batch?.id ?? null, gtdNumber: r.gtdNumber ?? customs?.gtdNumber, originCountry: r.originCountry ?? customs?.originCountry });
     };
     if (r.phase === 2) {
       for (const m of shipped) {
@@ -107,7 +135,7 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
         const batch = m.batchId ? byId.get(m.batchId) : undefined;
         const qty = dec(m.qty) < left ? dec(m.qty) : left;
         if (m.batchId && (!batch || batch.qty < qty)) throw new DomainError(422, 'stock_conflict', 'The shipped batch is no longer available');
-        take(qty, batch);
+        take(qty, batch, m);
       }
       if (left > 0n) throw new DomainError(422, 'stock_conflict', 'The shipment does not contain the requested quantity');
     } else {
@@ -121,15 +149,16 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
       }
       for (const batch of r.qualityExit ? all : all.filter(b => b.status === 'ok')) {
         if (left <= 0n) break;
-        take(batch.qty < left ? batch.qty : left, batch);
+        const have = available(r, batch);
+        take(have < left ? have : left, batch);
       }
       if (left > 0n && !r.qualityExit) {
         // Остаток не в ok: если он лежит в заблокированных партиях — отказ. Свободный остаток без партий
         // (до включения партионного учёта) и разрешённый минус остаются без партии, как раньше.
-        const held = all.filter(b => b.status !== 'ok' && b.qty > 0n);
+        const held = all.filter(b => b.status !== 'ok' && available(r, b) > 0n);
         if (held.length) {
           const [free] = await db.select({ qty: sql<string>`coalesce(sum(${stockMoves.qty}), 0)` }).from(stockMoves).where(and(
-            eq(stockMoves.workspaceId, workspaceId), eq(stockMoves.warehouseId, r.warehouseId), eq(stockMoves.productId, r.productId), sql`${stockMoves.batchId} is null`,
+            eq(stockMoves.workspaceId, workspaceId), eq(stockMoves.warehouseId, r.warehouseId), eq(stockMoves.productId, r.productId), sql`${stockMoves.batchId} is null`, r.binId ? eq(stockMoves.binId, r.binId) : addressable.has(r.warehouseId) ? isNull(stockMoves.binId) : undefined,
           ));
           if (left > dec(free?.qty ?? '0')) throw blocked(held, r);
         }
@@ -151,7 +180,7 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
         const source = portion.batchId ? byId.get(portion.batchId)! : null;
         // статус партии-источника переносится на партию-получатель (принятая партия остаётся ok, непринятая не размывается)
         const batchId = source ? await receiptBatch(db, workspaceId, r, { number: source.number, producedAt: source.producedAt, expiresAt: source.expiresAt }, source.status) : null;
-        out.push({ ...r, qty, batchId });
+        out.push({ ...r, qty, batchId, gtdNumber: r.gtdNumber ?? portion.gtdNumber, originCountry: r.originCountry ?? portion.originCountry });
         left -= qty;
       }
       if (left > 0n) throw new DomainError(422, 'stock_conflict', 'The transfer has no matching withdrawal');

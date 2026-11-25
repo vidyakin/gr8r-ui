@@ -370,6 +370,15 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- ficha del documento (DocumentPage) ----------- */
   document: {
+    lineStockDetails: "Almacenamiento y aduana",
+    lineBin: "Ubicación",
+    lineToBin: "Ubicación de destino",
+    lineNoBin: "Sin ubicación",
+    lineGtd: "Declaración aduanera (GTD)",
+    lineOrigin: "País de origen",
+    lineOriginHint: "Código ISO-2 o nombre con código numérico, p. ej. CN o China (156)",
+    lineGtdInvalid: "Usa letras, números, espacios, barras, puntos o guiones",
+    lineOriginInvalid: "Introduce un código ISO-2 o un nombre con su código numérico",
     draftRef: '(borrador)',
     title: 'Documento',
     createError: 'No se pudo crear el documento',

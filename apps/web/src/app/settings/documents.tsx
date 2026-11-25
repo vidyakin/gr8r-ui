@@ -3,11 +3,12 @@
 import * as React from 'react';
 import { Archive, Building2, Plus, Star, Tags, Warehouse as WarehouseIcon } from 'lucide-react';
 import { COST_DISTRIBUTIONS, COST_DISTRIBUTION_LABELS, TAX_SYSTEMS, TAX_SYSTEM_LABELS, VAT_LABELS, VAT_RATES, type CostDistribution, type CostItemKind, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@erp/shared';
-import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsContent, TabsList, toast } from '@/components/ui';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Switch, Tab, Tabs, TabsContent, TabsList, toast } from '@/components/ui';
 import { useCompanies, useIsAdmin } from '../catalog/data';
 import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
 import { useCostItems, useDocsApi, useInventorySettings, useOrganizations, useWarehouses, type CostItem, type Organization, type Warehouse } from '../docs/data';
 import { useIndustry } from '../industry/data';
+import { WarehouseBinsDialog } from './warehouse-bins';
 import { SettingsHead, SRow, Toggle } from './parts';
 import { t as tFn, hasKey, tEnum, useT, type TKey } from '@/i18n';
 
@@ -417,6 +418,7 @@ export function WarehousesSection({ title }: { title: string }) {
   const settings = useInventorySettings();
   const api = useDocsApi();
   const [dialog, setDialog] = React.useState<{ wh?: Warehouse } | null>(null);
+  const [binsWarehouse, setBinsWarehouse] = React.useState<Warehouse | null>(null);
   const [archiving, setArchiving] = React.useState<Warehouse | null>(null);
   const items = (list.data ?? []).filter(w => !w.archivedAt);
 
@@ -449,20 +451,19 @@ export function WarehousesSection({ title }: { title: string }) {
                   </div>
                   <div className="d">{w.address || t('settings.warehouses.noAddress')}</div>
                 </div>
-                {isAdmin && (
-                  <div className="row" style={{ gap: 2 }}>
-                    {!w.isDefault && (
+                <div className="row" style={{ gap: 2 }}>
+                  {w.useBins && <Button size="sm" variant="secondary" onClick={() => setBinsWarehouse(w)}>{t('settings.warehouses.bins.list')}</Button>}
+                  {isAdmin && !w.isDefault && (
+                    <>
                       <IconButton size="xs" label={t('settings.warehouses.makeDefault', { name: w.name })} onClick={() => void api('PATCH', `/warehouses/${w.id}`, { isDefault: true })}>
                         <Star size={14} />
                       </IconButton>
-                    )}
-                    {!w.isDefault && (
                       <IconButton size="xs" label={t('settings.warehouses.archive', { name: w.name })} onClick={() => setArchiving(w)}>
                         <Archive size={14} />
                       </IconButton>
-                    )}
-                  </div>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -484,6 +485,7 @@ export function WarehousesSection({ title }: { title: string }) {
           </Alert>
         )}
       </div>
+      {binsWarehouse && <WarehouseBinsDialog warehouse={binsWarehouse} editable={isAdmin} onClose={() => setBinsWarehouse(null)} />}
       {dialog && <WarehouseDialog wh={dialog.wh} onClose={() => setDialog(null)} />}
       <ConfirmDialog
         open={!!archiving}
@@ -512,6 +514,7 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
   const [name, setName] = React.useState(wh?.name ?? '');
   const [code, setCode] = React.useState(wh?.code ?? '');
   const [address, setAddress] = React.useState(wh?.address ?? '');
+  const [useBins, setUseBins] = React.useState(wh?.useBins ?? false);
   const [kind, setKind] = React.useState<WarehouseKind>(wh?.kind ?? 'warehouse');
   const quarantine = food || kind === 'quarantine';
   // склад контрагента: на стороне переработчика хранятся наши материалы, отданные ему в переработку
@@ -521,7 +524,7 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
   const submit = async () => {
     if (!name.trim()) return setErr(t('settings.warehouses.dialog.fields.nameRequired'));
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), address: address.trim(), kind, counterpartyId: counterpartyId || null };
+    const body = { name: name.trim(), code: code.trim(), address: address.trim(), kind, useBins, counterpartyId: counterpartyId || null };
     const r = wh ? await api('PATCH', `/warehouses/${wh.id}`, body) : await api('POST', '/warehouses', body);
     setBusy(false);
     if (!r) return;
@@ -579,6 +582,9 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
               </select>
             )}
           </Field>
+          <SRow t={t('settings.warehouses.bins.enable')}>
+            <Switch checked={useBins} onChange={e => setUseBins(e.target.checked)} aria-label={t('settings.warehouses.bins.enable')} />
+          </SRow>
           <button type="submit" hidden />
         </form>
       </DialogContent>

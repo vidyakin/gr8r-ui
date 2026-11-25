@@ -7,6 +7,7 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { applySerialMoves, revertSerialEvents } from './serials';
 import { assignBatches, revertBatches, type BatchLineInput } from './batches';
+import { applyBinBalances, assertUnassignedStock, replayBinBalances, resolveWarehouseBins } from './warehouse-bins';
 import { assertNoQuarantineOut } from './quarantine';
 import { documentLines, documents, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
 
@@ -65,6 +66,9 @@ export interface MoveRequest extends StockKey {
   qualityExit?: boolean;
   /** Партия (задача 1187): проставляется assignBatches — приходу при создании партии, расходу порцией FEFO */
   batchId?: string | null;
+  binId?: string | null;
+  gtdNumber?: string | null;
+  originCountry?: string | null;
 }
 
 /** Порции одного прихода по одной цене округляются как целая строка. Состояние
@@ -108,11 +112,20 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   if (!reqs.length) return new Map();
   // карантин (задача 1186): с карантинного склада нельзя списывать товар; перемещение из карантина разрешено и снимает карантин
   await assertNoQuarantineOut(db, workspaceId, reqs);
+  const { warehouseIds: addressable, binIds } = await resolveWarehouseBins(db, workspaceId, reqs, true);
+  reqs = reqs.map(r => r.binId && !binIds.has(`${r.warehouseId}:${r.binId}`) ? { ...r, binId: null } : r);
+  const transferSources = new Map(reqs.flatMap(r => r.transfer && r.lineId ? [[r.lineId, r] as const] : []));
+  for (const r of reqs) {
+    const source = r.costFromLine && r.lineId ? transferSources.get(r.lineId) : undefined;
+    if (source && source.warehouseId === r.warehouseId && (source.binId ?? null) === (r.binId ?? null)) {
+      throw new DomainError(422, 'invalid_warehouse_bin', 'Select two different locations to transfer stock within a warehouse');
+    }
+  }
   const serialReqs = reqs;
   const state = await lockBalances(db, workspaceId, reqs);
   // FEFO читает остатки только под общей блокировкой склада/товара: соседнее проведение
   // должно завершить запись движений до выбора доступных партий.
-  reqs = await assignBatches(db, workspaceId, doc, reqs, opts?.lineBatches ?? new Map());
+  reqs = await assignBatches(db, workspaceId, doc, reqs, opts?.lineBatches ?? new Map(), addressable);
   const rows: (typeof stockMoves.$inferInsert)[] = [];
   const need = new Map<string, Dec>();
   /** Фактическая цена расхода по строке документа — ею оценивается приход перемещения.
@@ -125,11 +138,12 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   const apply = (r: MoveRequest) => {
     const k = keyOf(r);
     const s = state.get(k)!;
+    const trace = { binId: r.binId ?? null, gtdNumber: r.gtdNumber ?? null, originCountry: r.originCountry ?? null };
     if (r.direction === 'in') {
       const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? outCost.get(r.lineId) : undefined) ?? s.avg;
       const next = advance(s, r.qty, cost, r.lineId ? `${k}:${r.lineId}:${r.phase ?? 1}` : undefined);
       state.set(k, next.state);
-      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
+      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, ...trace, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     } else {
       need.set(k, (need.get(k) ?? 0n) + r.qty);
       const o = advance(s, -r.qty, 0n);
@@ -139,9 +153,14 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
         outSum.set(r.lineId, (outSum.get(r.lineId) ?? 0n) + o.cost * r.qty);
         outQty.set(r.lineId, (outQty.get(r.lineId) ?? 0n) + r.qty);
       }
-      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
+      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, ...trace, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     }
   };
+  if (!settings.allowNegativeStock) {
+    await assertUnassignedStock(db, workspaceId, reqs.flatMap(r => r.direction === 'out' && !r.binId && addressable.has(r.warehouseId)
+      ? [{ warehouseId: r.warehouseId, productId: r.productId, onHand: state.get(keyOf(r))!.qty, needed: r.qty }]
+      : []));
+  }
   for (const r of reqs) if (r.direction === 'out') apply(r);
   for (const [lineId, sum] of outSum) outCost.set(lineId, sum / (outQty.get(lineId) ?? 1n));
   if (!settings.allowNegativeStock) {
@@ -159,6 +178,7 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
     }
   }
   for (const r of reqs) if (r.direction === 'in') apply(r);
+  await applyBinBalances(db, workspaceId, rows.flatMap(r => r.binId ? [{ warehouseId: r.warehouseId, binId: r.binId, productId: r.productId, qty: r.qty }] : []), settings.allowNegativeStock);
   await db.insert(stockMoves).values(rows);
   // серийные номера товаров с учётом по номерам: проверка и события (задача 1099).
   // Серийные номера принадлежат целой строке, а не каждой порции FEFO.
@@ -216,20 +236,22 @@ export async function documentCosts(db: Db, documentIds: string[]): Promise<Map<
     `phase` — отменить только одну фазу (перемещение «в пути»: отмена приёмки) */
 export async function revertStockMoves(db: Db, workspaceId: string, documentId: string, settings: InventorySettings, phase?: number): Promise<void> {
   const scope = phase ? and(eq(stockMoves.documentId, documentId), eq(stockMoves.phase, phase)) : eq(stockMoves.documentId, documentId);
-  const own = await db.select({ warehouseId: stockMoves.warehouseId, productId: stockMoves.productId, batchId: stockMoves.batchId }).from(stockMoves).where(scope);
+  const own = await db.select({ warehouseId: stockMoves.warehouseId, productId: stockMoves.productId, batchId: stockMoves.batchId, binId: stockMoves.binId }).from(stockMoves).where(scope);
   if (!own.length) return;
   await revertSerialEvents(db, workspaceId, documentId, phase);
   const keys = uniqueKeys(own);
+  const { warehouseIds: addressable } = await resolveWarehouseBins(db, workspaceId, keys, true);
   // после закрытия периода пересчёт пойдёт по всем остаткам: блокируем их все заранее и в общем порядке
   const adjusted = await hasCostAdjustments(db, workspaceId);
   if (adjusted) await lockWorkspaceBalances(db, workspaceId);
   await lockBalances(db, workspaceId, keys);
   await db.delete(stockMoves).where(scope);
+  await replayBinBalances(db, workspaceId, own.flatMap(m => m.binId ? [{ warehouseId: m.warehouseId, binId: m.binId, productId: m.productId }] : []), settings.allowNegativeStock);
   await revertBatches(db, workspaceId, [...new Set(own.flatMap(m => m.batchId ? [m.batchId] : []))], settings.allowNegativeStock);
   const bad: StockKey[] = [];
   for (const k of keys) {
     const moves = await db
-      .select({ id: stockMoves.id, qty: stockMoves.qty, cost: stockMoves.cost, lineId: stockMoves.documentLineId, phase: stockMoves.phase })
+      .select({ id: stockMoves.id, binId: stockMoves.binId, qty: stockMoves.qty, cost: stockMoves.cost, lineId: stockMoves.documentLineId, phase: stockMoves.phase })
       .from(stockMoves)
       .where(and(eq(stockMoves.warehouseId, k.warehouseId), eq(stockMoves.productId, k.productId)))
       .orderBy(asc(stockMoves.seq));
@@ -239,6 +261,16 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
       if (dec(m.qty) < 0n && cost !== m.cost) await db.update(stockMoves).set({ cost }).where(eq(stockMoves.id, m.id));
     }
     if (!settings.allowNegativeStock && (r.minQty < 0n || r.state.qty < 0n)) bad.push(k);
+    else if (!settings.allowNegativeStock && addressable.has(k.warehouseId) && own.some(m => !m.binId && keyOf(m) === keyOf(k))) {
+      let unassigned = 0n;
+      for (const move of moves) {
+        if (!move.binId) unassigned += dec(move.qty);
+        if (unassigned < 0n) {
+          bad.push(k);
+          break;
+        }
+      }
+    }
     await db.update(stockBalances).set({ qty: fmt(r.state.qty, 3), avgCost: fmt(r.state.avg, 4), updatedAt: new Date() }).where(and(eq(stockBalances.warehouseId, k.warehouseId), eq(stockBalances.productId, k.productId)));
   }
   if (bad.length) {

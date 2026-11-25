@@ -211,6 +211,7 @@ export const enums = {
   printForm: {
     quote: 'Commercial proposal',
     invoice: 'Invoice for payment',
+    vat_invoice: "VAT invoice",
     upd: 'UPD',
     act: 'Service act',
     torg12: 'TORG-12',

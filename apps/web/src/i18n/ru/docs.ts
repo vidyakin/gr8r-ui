@@ -371,6 +371,15 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- карточка документа (DocumentPage) ----------- */
   document: {
+    lineStockDetails: "Хранение и ГТД",
+    lineBin: "Ячейка",
+    lineToBin: "Ячейка назначения",
+    lineNoBin: "Без ячейки",
+    lineGtd: "ГТД",
+    lineOrigin: "Страна происхождения",
+    lineOriginHint: "Код ISO-2 или название с кодом ОКСМ, например CN или Китай (156)",
+    lineGtdInvalid: "Используйте буквы, цифры, пробелы, косые черты, точки или дефисы",
+    lineOriginInvalid: "Укажите код ISO-2 или название с кодом ОКСМ",
     draftRef: '(черновик)',
     title: 'Документ',
     createError: 'Не удалось создать документ',

@@ -138,6 +138,7 @@ export const warehouses = pgTable(
     kind: text('kind', { enum: ['warehouse', 'workshop', 'transit', 'quarantine'] }).notNull().default('warehouse'),
     /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
     counterpartyId: uuid('counterparty_id'),
+    useBins: boolean('use_bins').notNull().default(false),
     isDefault: boolean('is_default').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -150,6 +151,49 @@ export const warehouses = pgTable(
     uniqueIndex('warehouses_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
     // задача 1186: карантинный склад (входной контроль сырья) — расход с него запрещён
     check('warehouses_kind_chk', sql`${t.kind} in ('warehouse','workshop','transit','quarantine')`),
+  ],
+);
+
+export const warehouseBins = pgTable(
+  'warehouse_bins',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    code: text('code').notNull(),
+    name: text('name').notNull().default(''),
+    zone: text('zone').notNull().default(''),
+    rack: text('rack').notNull().default(''),
+    shelf: text('shelf').notNull().default(''),
+    cell: text('cell').notNull().default(''),
+    parentId: uuid('parent_id'),
+    active: boolean('active').notNull().default(true),
+  },
+  t => [
+    unique('warehouse_bins_ws_id_uq').on(t.workspaceId, t.id),
+    unique('warehouse_bins_warehouse_id_uq').on(t.workspaceId, t.warehouseId, t.id),
+    unique('warehouse_bins_code_uq').on(t.workspaceId, t.warehouseId, t.code),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'warehouse_bins_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId, t.parentId], foreignColumns: [t.workspaceId, t.warehouseId, t.id], name: 'warehouse_bins_parent_fk' }),
+    check('warehouse_bins_code_chk', sql`length(btrim(${t.code})) between 1 and 64`),
+    check('warehouse_bins_parent_chk', sql`${t.parentId} <> ${t.id}`),
+  ],
+);
+
+export const stockBinBalances = pgTable(
+  'stock_bin_balances',
+  {
+    workspaceId: wsCol(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    binId: uuid('bin_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
+  },
+  t => [
+    primaryKey({ name: 'stock_bin_balances_pkey', columns: [t.workspaceId, t.warehouseId, t.binId, t.productId] }),
+    index('stock_bin_balances_product_idx').on(t.workspaceId, t.warehouseId, t.productId),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId, t.binId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.warehouseId, warehouseBins.id], name: 'stock_bin_balances_bin_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_bin_balances_product_fk' }),
   ],
 );
 
@@ -375,6 +419,10 @@ export const documentLines = pgTable(
     shipBy: date('ship_by', { mode: 'string' }),
     /** Партия строки (задача 1187): номер партии прихода; пусто — партия не задана */
     batchNumber: text('batch_number'),
+    binId: uuid('bin_id'),
+    toBinId: uuid('to_bin_id'),
+    gtdNumber: text('gtd_number'),
+    originCountry: text('origin_country'),
     /** Дата выработки партии строки */
     batchProducedAt: date('batch_produced_at', { mode: 'string' }),
     /** Годен до партии строки; пусто — берётся срок годности товара */
@@ -385,6 +433,8 @@ export const documentLines = pgTable(
   },
   t => [
     unique('document_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.binId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.id], name: 'document_lines_bin_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.toBinId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.id], name: 'document_lines_to_bin_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_lines_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'document_lines_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'document_lines_unit_fk' }),
@@ -473,6 +523,9 @@ export const stockMoves = pgTable(
     documentLineId: uuid('document_line_id'),
     /** Партия (задача 1187): приход с партией создаёт/пополняет её, расход FEFO ссылается на списанную партию */
     batchId: uuid('batch_id'),
+    binId: uuid('bin_id'),
+    gtdNumber: text('gtd_number'),
+    originCountry: text('origin_country'),
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
     /** Приход: цена единицы без НДС (или с НДС при УСН); расход: себестоимость по средней на момент списания */
     cost: numeric('cost', { precision: 18, scale: 4 }).notNull().default('0'),
@@ -494,6 +547,8 @@ export const stockMoves = pgTable(
     index('stock_moves_product_idx').on(t.workspaceId, t.productId, t.seq),
     index('stock_moves_document_idx').on(t.documentId),
     index('stock_moves_batch_idx').on(t.workspaceId, t.batchId),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId, t.binId], foreignColumns: [warehouseBins.workspaceId, warehouseBins.warehouseId, warehouseBins.id], name: 'stock_moves_bin_fk' }),
+    index('stock_moves_bin_idx').on(t.workspaceId, t.warehouseId, t.binId, t.productId, t.seq).where(sql`${t.binId} is not null`),
   ],
 );
 

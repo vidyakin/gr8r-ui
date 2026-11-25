@@ -370,6 +370,15 @@ export const docs = {
 
   /* ----------- карточка документа (DocumentPage) ----------- */
   document: {
+    lineStockDetails: "Storage and customs",
+    lineBin: "Bin",
+    lineToBin: "Destination bin",
+    lineNoBin: "No bin",
+    lineGtd: "Customs declaration (GTD)",
+    lineOrigin: "Country of origin",
+    lineOriginHint: "ISO-2 code or name with a numeric code, e.g. CN or China (156)",
+    lineGtdInvalid: "Use letters, digits, spaces, slashes, dots or hyphens",
+    lineOriginInvalid: "Enter an ISO-2 code or a name with its numeric code",
     draftRef: '(draft)',
     title: 'Document',
     createError: 'Could not create the document',

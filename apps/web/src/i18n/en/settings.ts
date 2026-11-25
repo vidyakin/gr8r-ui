@@ -603,6 +603,27 @@ export const settings = {
 
   /* ---------------- warehouses ---------------- */
   warehouses: {
+    bins: {
+      enable: "Bin storage",
+      list: "Bins",
+      title: "Bins · {name}",
+      balances: "Stock by bin",
+      add: "Add bin",
+      edit: "Edit bin {code}",
+      archive: "Deactivate bin {code}",
+      reactivate: "Reactivate bin {code}",
+      archiveHint: "This bin will no longer be available for stock movements. You can reactivate it later.",
+      archiveConfirm: "Deactivate",
+      empty: "No bins yet",
+      noBalances: "No stock in these bins",
+      parent: "Parent bin",
+      zone: "Zone",
+      rack: "Rack",
+      shelf: "Shelf",
+      cell: "Cell",
+      codeRequired: "Enter a bin code",
+      page: "{page} of {total}",
+    },
     lead: 'Places where goods are stored. Shipments and receipts move stock of the warehouse chosen in the document.',
     title: 'Warehouses',
     new: 'New warehouse',

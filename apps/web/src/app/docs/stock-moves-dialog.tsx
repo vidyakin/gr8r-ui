@@ -12,6 +12,7 @@ import { docsKey } from './data';
 export interface DocumentMove {
   warehouseId: string;
   warehouseName: string;
+  binCode?: string | null;
   productId: string;
   productName: string;
   sku: string;
@@ -95,7 +96,7 @@ export function StockMovesDialog({ docId, onClose }: { docId: string; onClose: (
               {moves.map((m, i) => (
                 <tr key={i}>
                   <td className="muted">
-                    {m.warehouseName}
+                    {m.warehouseName}{m.binCode ? ` · ${m.binCode}` : ''}
                     {m.phase === 2 && <span className="faint"> · {t('docs.stockMoves.receiving')}</span>}
                   </td>
                   <td>{m.productName}</td>

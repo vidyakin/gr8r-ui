@@ -939,6 +939,13 @@
       "when": 1795489200000,
       "tag": "0143_login_security",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795575600000,
+      "tag": "0144_warehouse_bins_gtd",
+      "breakpoints": true
     }
   ]
 }

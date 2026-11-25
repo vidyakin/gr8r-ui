@@ -8,11 +8,15 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { withInTransactionNumbering } from './numbering';
 import { postDocument, type DocCtx } from './documents';
-import { documents, products, stockBatches, stockCostAdjustments, stockMoves, warehouses } from './schema';
+import { documents, products, stockBatches, stockCostAdjustments, stockMoves, warehouseBins, warehouses } from './schema';
 
 export interface DocumentMoveRow {
   warehouseId: string;
   warehouseName: string;
+  binId: string | null;
+  binCode: string | null;
+  gtdNumber: string | null;
+  originCountry: string | null;
   productId: string;
   productName: string;
   sku: string;
@@ -44,6 +48,10 @@ export async function readDocumentMoves(db: Db, workspaceId: string, documentId:
     .select({
       warehouseId: stockMoves.warehouseId,
       warehouseName: warehouses.name,
+      binId: stockMoves.binId,
+      binCode: warehouseBins.code,
+      gtdNumber: stockMoves.gtdNumber,
+      originCountry: stockMoves.originCountry,
       productId: stockMoves.productId,
       productName: products.name,
       sku: products.sku,
@@ -59,6 +67,7 @@ export async function readDocumentMoves(db: Db, workspaceId: string, documentId:
     .from(stockMoves)
     .innerJoin(warehouses, eq(warehouses.id, stockMoves.warehouseId))
     .innerJoin(products, eq(products.id, stockMoves.productId))
+    .leftJoin(warehouseBins, and(eq(warehouseBins.workspaceId, stockMoves.workspaceId), eq(warehouseBins.id, stockMoves.binId)))
     .leftJoin(stockBatches, eq(stockBatches.id, stockMoves.batchId))
     .leftJoin(stockCostAdjustments, and(eq(stockCostAdjustments.workspaceId, stockMoves.workspaceId), eq(stockCostAdjustments.moveId, stockMoves.id)))
     .where(and(eq(stockMoves.workspaceId, workspaceId), eq(stockMoves.documentId, documentId)))

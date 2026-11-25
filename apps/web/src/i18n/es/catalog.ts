@@ -225,6 +225,7 @@ export const enums: Widen<typeof E> = {
   printForm: {
     quote: 'Presupuesto comercial',
     invoice: 'Factura de pago',
+    vat_invoice: "Factura fiscal",
     upd: 'UPD',
     act: 'Acta de servicios',
     torg12: 'TORG-12',

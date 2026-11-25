@@ -605,6 +605,27 @@ export const settings: Widen<typeof S> = {
 
   /* ---------------- almacenes ---------------- */
   warehouses: {
+    bins: {
+      enable: "Almacenamiento por ubicaciones",
+      list: "Ubicaciones",
+      title: "Ubicaciones · {name}",
+      balances: "Existencias por ubicación",
+      add: "Añadir ubicación",
+      edit: "Editar ubicación {code}",
+      archive: "Desactivar ubicación {code}",
+      reactivate: "Reactivar ubicación {code}",
+      archiveHint: "La ubicación dejará de estar disponible para los movimientos. Puedes reactivarla más adelante.",
+      archiveConfirm: "Desactivar",
+      empty: "Aún no hay ubicaciones",
+      noBalances: "No hay existencias en estas ubicaciones",
+      parent: "Ubicación superior",
+      zone: "Zona",
+      rack: "Estantería",
+      shelf: "Nivel",
+      cell: "Casilla",
+      codeRequired: "Introduce el código de la ubicación",
+      page: "{page} de {total}",
+    },
     lead: 'Lugares donde se almacenan los bienes. Los envíos y recepciones mueven el stock del almacén elegido en el documento.',
     title: 'Almacenes',
     new: 'Nuevo almacén',

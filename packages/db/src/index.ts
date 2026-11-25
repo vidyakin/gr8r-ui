@@ -17,6 +17,7 @@ export * from './supplier-prices';
 export * from './supplier-rating';
 export * from './loyalty';
 export * from './stock';
+export { assertBinsCanBeDisabled, createWarehouseBin, listWarehouseBins, listBinBalances, updateWarehouseBin } from './warehouse-bins';
 export * from './customer-stock';
 export * from './cost';
 export * from './modules';

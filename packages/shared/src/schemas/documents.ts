@@ -5,6 +5,7 @@ import { COST_DISTRIBUTIONS } from '../cost-closing';
 import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_OPERATIONS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TOLLING_ROLES, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
 import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
+import { originCountryDetails } from '../origin-country';
 import { customData } from './meta';
 
 const nonNeg = (max = 1e13) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
@@ -82,9 +83,31 @@ export const warehouseCreate = z.object({
   /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
   counterpartyId: uuid.nullish(),
   isDefault: z.boolean().optional(),
+  useBins: z.boolean().default(false),
 });
 export const warehouseUpdate = toPatch(warehouseCreate.omit({ id: true }));
 export const warehouseQuery = listQuery;
+
+const binLabel = z.string().trim().max(100).default('');
+export const warehouseBinCreate = z.object({
+  code: z.string().trim().min(1).max(64).regex(/^[^\p{Cc}]+$/u),
+  name: binLabel,
+  zone: binLabel,
+  rack: binLabel,
+  shelf: binLabel,
+  cell: binLabel,
+  parentId: uuid.nullish(),
+  active: z.boolean().default(true),
+});
+export const warehouseBinUpdate = toPatch(warehouseBinCreate);
+export type WarehouseBinInput = z.output<typeof warehouseBinCreate>;
+export type WarehouseBinPatch = z.output<typeof warehouseBinUpdate>;
+
+const gtdNumber = z.string().trim().max(100).regex(/^[\p{L}\p{N}/. -]+$/u).nullish();
+const originCountry = z.string().trim().max(150)
+  .refine(value => originCountryDetails(value) !== null, 'Use a country code or a country name followed by its numeric code')
+  .transform(value => /^[a-z]{2}$/i.test(value) ? value.toUpperCase() : value)
+  .nullish();
 
 /* ---------------- статьи затрат и доходов ---------------- */
 
@@ -105,6 +128,8 @@ export const costItemQuery = listQuery.extend({ kind: z.enum(COST_ITEM_KINDS).op
 export const paramValues = z.record(z.string().max(40), z.union([z.number().finite(), z.string().max(200), z.boolean()]));
 
 /* ---------------- документы ---------------- */
+
+export const documentCustomsFields = z.object({ gtdNumber, originCountry });
 
 export const documentLineInput = z
   .object({
@@ -154,6 +179,9 @@ export const documentLineInput = z
     /** Серийные номера строки (товары с учётом по номерам): список заменяет прежние */
     serials: z.array(z.string().trim().min(1).max(100)).max(2000).optional(),
     /** Партия строки (задача 1187): номер партии прихода */
+    binId: uuid.nullish(),
+    toBinId: uuid.nullish(),
+    ...documentCustomsFields.shape,
     batchNumber: z.string().trim().max(100).nullish(),
     /** Дата выработки партии */
     batchProducedAt: isoDate.nullish(),
