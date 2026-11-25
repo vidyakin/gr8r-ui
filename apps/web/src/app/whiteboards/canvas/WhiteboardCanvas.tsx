@@ -1,6 +1,24 @@
 // Главный компонент интерактивной доски: pan/zoom, выделение, drag+snap, ресайз, создание фигур, undo/redo и экспорт
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowUpRight,
+  Circle,
+  Frame,
+  Hand,
+  Maximize2,
+  Minus,
+  MousePointer2,
+  Pen,
+  Plus,
+  Redo2,
+  Square,
+  SquarePlus,
+  StickyNote,
+  Type,
+  Undo2,
+  type LucideIcon,
+} from 'lucide-react';
+import {
   computeSnap,
   downloadPng,
   downloadSvg,
@@ -53,16 +71,16 @@ const HANDLES: { dir: HandleDir; left: string; top: string; cursor: string }[] =
   { dir: 'w', left: '0%', top: '50%', cursor: 'ew-resize' },
 ];
 
-const TOOLS: { id: WbTool; label: string; key: string }[] = [
-  { id: 'select', label: 'Выбор', key: 'V' },
-  { id: 'hand', label: 'Рука', key: 'H' },
-  { id: 'sticky', label: 'Стикер', key: 'S' },
-  { id: 'rect', label: 'Блок', key: 'R' },
-  { id: 'ellipse', label: 'Круг', key: 'O' },
-  { id: 'text', label: 'Текст', key: 'T' },
-  { id: 'section', label: 'Секция', key: 'F' },
-  { id: 'arrow', label: 'Стрелка', key: 'A' },
-  { id: 'pen', label: 'Перо', key: 'P' },
+const TOOLS: { id: WbTool; label: string; key: string; icon: LucideIcon }[] = [
+  { id: 'select', label: 'Выбор', key: 'V', icon: MousePointer2 },
+  { id: 'hand', label: 'Рука', key: 'H', icon: Hand },
+  { id: 'sticky', label: 'Стикер', key: 'S', icon: StickyNote },
+  { id: 'rect', label: 'Блок', key: 'R', icon: Square },
+  { id: 'ellipse', label: 'Круг', key: 'O', icon: Circle },
+  { id: 'text', label: 'Текст', key: 'T', icon: Type },
+  { id: 'section', label: 'Секция', key: 'F', icon: Frame },
+  { id: 'arrow', label: 'Стрелка', key: 'A', icon: ArrowUpRight },
+  { id: 'pen', label: 'Перо', key: 'P', icon: Pen },
 ];
 
 const uid = () => `wb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -676,28 +694,50 @@ export function WhiteboardCanvas({
 
       {!readOnly && (
         <div className="wb-dock" onPointerDown={(e) => e.stopPropagation()}>
-          {TOOLS.map((t) => (
-            <button key={t.id} type="button" className={`wb-tool-btn${tool === t.id ? ' is-active' : ''}`} onClick={() => setTool(t.id)} title={`${t.label} (${t.key})`}>
-              {t.label}
-            </button>
-          ))}
+          {TOOLS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className={`wb-tool-btn wb-icon-btn${tool === t.id ? ' is-active' : ''}`}
+                onClick={() => setTool(t.id)}
+                title={`${t.label} (${t.key})`}
+                aria-label={t.label}
+              >
+                <Icon size={17} strokeWidth={1.8} />
+              </button>
+            );
+          })}
           <div className="wb-divider" />
-          <button type="button" className="wb-tool-btn" disabled={!canUndo} onClick={undo} title="Отменить (⌘Z)">↶</button>
-          <button type="button" className="wb-tool-btn" disabled={!canRedo} onClick={redo} title="Повторить (⌘⇧Z)">↷</button>
+          <button type="button" className="wb-tool-btn wb-icon-btn" disabled={!canUndo} onClick={undo} title="Отменить (⌘Z)" aria-label="Отменить">
+            <Undo2 size={17} strokeWidth={1.8} />
+          </button>
+          <button type="button" className="wb-tool-btn wb-icon-btn" disabled={!canRedo} onClick={redo} title="Повторить (⌘⇧Z)" aria-label="Повторить">
+            <Redo2 size={17} strokeWidth={1.8} />
+          </button>
           {onAddErpCardClick && (
             <>
               <div className="wb-divider" />
-              <button type="button" className="wb-tool-btn" onClick={onAddErpCardClick}>+ ERP</button>
+              <button type="button" className="wb-tool-btn wb-icon-btn" onClick={onAddErpCardClick} title="Добавить ERP-карточку" aria-label="Добавить ERP-карточку">
+                <SquarePlus size={17} strokeWidth={1.8} />
+              </button>
             </>
           )}
         </div>
       )}
 
       <div className="wb-zoom-bar" onPointerDown={(e) => e.stopPropagation()}>
-        <button type="button" className="wb-tool-btn" onClick={() => onViewportChange({ ...viewport, zoom: clampZoom(viewport.zoom - 0.15) })}>−</button>
+        <button type="button" className="wb-tool-btn wb-icon-btn" onClick={() => onViewportChange({ ...viewport, zoom: clampZoom(viewport.zoom - 0.15) })} title="Уменьшить" aria-label="Уменьшить">
+          <Minus size={15} />
+        </button>
         <span style={{ fontSize: 12, minWidth: 42, textAlign: 'center' }}>{Math.round(viewport.zoom * 100)}%</span>
-        <button type="button" className="wb-tool-btn" onClick={() => onViewportChange({ ...viewport, zoom: clampZoom(viewport.zoom + 0.15) })}>+</button>
-        <button type="button" className="wb-tool-btn" onClick={fitToContent} title="Вписать содержимое">Вписать</button>
+        <button type="button" className="wb-tool-btn wb-icon-btn" onClick={() => onViewportChange({ ...viewport, zoom: clampZoom(viewport.zoom + 0.15) })} title="Увеличить" aria-label="Увеличить">
+          <Plus size={15} />
+        </button>
+        <button type="button" className="wb-tool-btn wb-icon-btn" onClick={fitToContent} title="Вписать содержимое" aria-label="Вписать содержимое">
+          <Maximize2 size={15} />
+        </button>
         <div className="wb-divider" />
         <button type="button" className="wb-tool-btn" onClick={() => downloadSvg(exportBoardToSvg(elements, title), `${title}.svg`)}>SVG</button>
         <button type="button" className="wb-tool-btn" onClick={() => downloadPng(exportBoardToSvg(elements, title), `${title}.png`)}>PNG</button>

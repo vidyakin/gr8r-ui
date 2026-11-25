@@ -194,7 +194,7 @@ function TaskRow({ task: t, columns, COLUMNS, template }: { task: Task; columns:
               {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </span>
           ) : (
-            <span style={{ width: 18, flexShrink: 0 }} />
+            <span className="sub-spacer" style={{ width: 18, flexShrink: 0 }} />
           )}
           <span className="key">{t.key}</span>
           <span className="tt">{t.title}</span>
@@ -228,6 +228,19 @@ function TaskRow({ task: t, columns, COLUMNS, template }: { task: Task; columns:
         })}
         <div className="c-more">
           <RowMenu task={t} />
+        </div>
+        <div className="c-foot-m">
+          {columns.includes('priority') && (
+            <div className="c-priority">
+              <PriorityField task={t} />
+            </div>
+          )}
+          {columns.includes('due') && (
+            <div className="c-due">
+              <DueField task={t} />
+            </div>
+          )}
+          <span className="key">{t.key}</span>
         </div>
       </div>
       {open && (

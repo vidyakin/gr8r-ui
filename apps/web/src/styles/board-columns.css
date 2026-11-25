@@ -140,8 +140,11 @@ body:has(.pprio, [role='menu']) .tip-rich {
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
-  border-radius: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
   color: #fff;
+  font-size: 11.5px;
   font-weight: 650;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -149,6 +152,7 @@ body:has(.pprio, [role='menu']) .tip-rich {
 .prio.none {
   background: transparent;
   border: 1.5px dashed var(--border-strong);
+  color: var(--text-3);
 }
 .pprio {
   width: 236px;

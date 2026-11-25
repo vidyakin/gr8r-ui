@@ -7,13 +7,14 @@ import { ArrowUpRight, Calendar, ChevronLeft, ChevronRight, Clock, Folder, Plus,
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented, toast } from '@/components/ui';
 import { PriorityIcon, StatusIcon } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
-import { useT, weekStartsOn } from '@/i18n';
+import { useLocale, useT, weekStartsOn } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { project, projectColor } from '../data/selectors';
 import { diffDays, fmtDate, iso, parse, sod, today } from '../lib/dates';
 import type { CalendarEvent, Task } from '../data/types';
 import { MemberAvatar, MemberStack, useTaskActions } from './workspace';
 import { ProjectDot } from './project';
+import { DaySchedule } from './calendar-day';
 
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 const MONTH_LONG_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
@@ -24,6 +25,14 @@ const addDays = (d: Date, n: number) => {
   return x;
 };
 const startOfWeek = (d: Date) => addDays(sod(d), -((d.getDay() - weekStartsOn() + 7) % 7));
+const fmtShortDate = (d: Date) =>
+  `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getFullYear()).slice(-2)}`;
+const fmtLongDay = (d: Date, locale: string) => {
+  const raw = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    .format(d)
+    .replace(/\s*г\.?$/, '');
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+};
 
 /** Свойства источника перетаскивания: карточка задачи в ячейке дня */
 type DragSrc = { draggable: true; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void };
@@ -170,7 +179,8 @@ function WeekCard({ t, drag }: { t: Task; drag: DragSrc }) {
 export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: (due: string) => void; events?: CalendarEvent[] }) {
   const { data, dispatch } = useWorkspace();
   const tt = useT();
-  const [mode, setMode] = React.useState<'month' | 'week'>('month');
+  const locale = useLocale();
+  const [mode, setMode] = React.useState<'month' | 'week' | 'day'>('month');
   const [cur, setCur] = React.useState(today);
   const [dragId, setDragId] = React.useState<string | null>(null);
   // День под курсором во время перетаскивания (класс .over)
@@ -221,9 +231,15 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
   const nav = (dir: -1 | 0 | 1) =>
     setCur(c => {
       if (dir === 0) return today();
+      if (mode === 'day') return addDays(c, dir);
       if (mode === 'week') return addDays(c, dir * 7);
       return new Date(c.getFullYear(), c.getMonth() + dir, 1);
     });
+
+  const openDay = (d: Date) => {
+    setCur(sod(d));
+    setMode('day');
+  };
 
   let label: string, body: React.ReactNode;
   if (mode === 'month') {
@@ -238,7 +254,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
             <div key={i}>{tt(`views.calendar.weekDaysShort.${WEEKDAY_KEYS[(i + weekStartsOn()) % 7]}`)}</div>
           ))}
         </div>
-        <div className="cal-g" style={{ gridTemplateRows: `repeat(${days.length / 7},minmax(112px,1fr))` }}>
+        <div className="cal-g" style={{ '--cal-rows': days.length / 7 } as React.CSSProperties}>
           {days.map(d => {
             const ds = iso(d);
             const evs = evOn(ds);
@@ -246,10 +262,23 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
             const total = evs.length + items.length;
             const isToday = diffDays(d, now) === 0;
             return (
-              <div key={ds} className={cn('cday', d.getMonth() !== cur.getMonth() && 'out', isToday && 'today', overDay === ds && 'over')} {...dropTarget(ds)}>
-                <span className="dn" aria-current={isToday ? 'date' : undefined}>
+              <div
+                key={ds}
+                className={cn('cday', d.getMonth() !== cur.getMonth() && 'out', isToday && 'today', overDay === ds && 'over')}
+                onClick={e => {
+                  if ((e.target as HTMLElement).closest('button')) return;
+                  openDay(d);
+                }}
+                {...dropTarget(ds)}
+              >
+                <button
+                  type="button"
+                  className="dn"
+                  aria-current={isToday ? 'date' : undefined}
+                  onClick={() => openDay(d)}
+                >
                   {d.getDate()}
-                </span>
+                </button>
                 {onAdd && (
                   <button className="ibtn ibtn-xs add" aria-label={tt('views.calendar.addOn', { date: fmtDate(ds) })} onClick={() => onAdd(ds)}>
                     <Plus size={13} />
@@ -265,7 +294,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
                   (events ? (
                     <DayList ds={ds} evs={evs} ts={items} />
                   ) : (
-                    <button className="cmore" onClick={() => (setCur(d), setMode('week'))}>
+                    <button className="cmore" onClick={() => openDay(d)}>
                       {tt('views.calendar.moreCount', { n: total - 3 })}
                     </button>
                   ))}
@@ -275,10 +304,10 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
         </div>
       </>
     );
-  } else {
+  } else if (mode === 'week') {
     const ws = startOfWeek(cur);
     const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-    label = `${fmtDate(days[0])} – ${fmtDate(days[6])}, ${days[6].getFullYear()}`;
+    label = `${fmtShortDate(days[0])} - ${fmtShortDate(days[6])}`;
     body = (
       <div className="week">
         {days.map(d => {
@@ -288,8 +317,10 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
           return (
             <div key={ds} className="wcol">
               <div className={cn('wcol-h', diffDays(d, now) === 0 && 'today')}>
-                <span className="n">{d.getDate()}</span>
-                <span className="muted" style={{ fontSize: 12 }}>
+                <button type="button" className="n" style={{ cursor: 'pointer' }} onClick={() => openDay(d)}>
+                  {d.getDate()}
+                </button>
+                <span className="muted" style={{ fontSize: 12, cursor: 'pointer' }} onClick={() => openDay(d)}>
                   {tt(`views.calendar.weekDaysShort.${WEEKDAY_KEYS[d.getDay()]}`)}
                 </span>
                 <span className="sp" />
@@ -320,46 +351,63 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
         })}
       </div>
     );
+  } else {
+    const ds = iso(cur);
+    label = fmtLongDay(cur, locale);
+    body = (
+      <DaySchedule
+        ds={ds}
+        isToday={diffDays(cur, now) === 0}
+        tasks={on(ds)}
+        events={evOn(ds)}
+        onAdd={onAdd}
+        renderEvent={ev => <EventChip key={ev.id} e={ev} />}
+      />
+    );
   }
 
   const projects = [...new Set(tasks.map(t => t.project))].map(id => project(data, id)).filter(p => !!p);
   return (
-    <div className="cal" style={{ minHeight: 640 }}>
-      <div className="toolbar" style={{ gap: 8 }}>
-        <Button size="sm" onClick={() => nav(0)}>
-          {tt('views.calendar.today')}
-        </Button>
-        <div className="row" style={{ gap: 0 }}>
-          <IconButton size="sm" label={tt('common.previous')} tooltip={false} onClick={() => nav(-1)}>
-            <ChevronLeft size={16} />
-          </IconButton>
-          <IconButton size="sm" label={tt('common.next')} tooltip={false} onClick={() => nav(1)}>
-            <ChevronRight size={16} />
-          </IconButton>
+    <div className="cal">
+      <div className="toolbar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+        <div className="row" style={{ gap: 6, minWidth: 0 }}>
+          <div className="row" style={{ gap: 0, flexShrink: 0 }}>
+            <IconButton size="sm" label={tt('common.previous')} tooltip={false} onClick={() => nav(-1)}>
+              <ChevronLeft size={16} />
+            </IconButton>
+            <IconButton size="sm" label={tt('common.next')} tooltip={false} onClick={() => nav(1)}>
+              <ChevronRight size={16} />
+            </IconButton>
+          </div>
+          <h2 className="trunc" style={{ fontSize: 14.5, fontWeight: 600, margin: '0 4px 0 2px', letterSpacing: '-.01em' }} aria-live="polite">
+            {label}
+          </h2>
+          {projects.length > 1 && (
+            <span className="row hide-m" style={{ marginLeft: 'auto', gap: 10, fontSize: 11.5, color: 'var(--text-2)' }}>
+              {projects.slice(0, 5).map(p => (
+                <span key={p.id} className="row" style={{ gap: 4 }}>
+                  <ProjectDot project={p} />
+                  {p.name}
+                </span>
+              ))}
+            </span>
+          )}
         </div>
-        <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 4px', letterSpacing: '-.01em' }} aria-live="polite">
-          {label}
-        </h2>
-        <span className="sp" />
-        {projects.length > 1 && (
-          <span className="row hide-m" style={{ gap: 10, fontSize: 11.5, color: 'var(--text-2)', marginRight: 8 }}>
-            {projects.slice(0, 5).map(p => (
-              <span key={p.id} className="row" style={{ gap: 4 }}>
-                <ProjectDot project={p} />
-                {p.name}
-              </span>
-            ))}
-          </span>
-        )}
-        <Segmented
-          aria-label={tt('views.calendar.calendarRange')}
-          value={mode}
-          onValueChange={setMode}
-          items={[
-            { value: 'month', label: tt('views.calendar.month') },
-            { value: 'week', label: tt('views.calendar.week') },
-          ]}
-        />
+        <div className="row" style={{ gap: 8 }}>
+          <Segmented
+            aria-label={tt('views.calendar.calendarRange')}
+            value={mode}
+            onValueChange={setMode}
+            items={[
+              { value: 'month', label: tt('views.calendar.month') },
+              { value: 'week', label: tt('views.calendar.week') },
+              { value: 'day', label: tt('views.calendar.day') },
+            ]}
+          />
+          <Button size="sm" style={{ marginLeft: 'auto' }} onClick={() => nav(0)}>
+            {tt('views.calendar.today')}
+          </Button>
+        </div>
       </div>
       {body}
     </div>

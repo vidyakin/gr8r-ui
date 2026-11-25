@@ -274,7 +274,7 @@ function Editor({ board }: { board: WhiteboardDetail }) {
         </span>
       </div>
 
-      <div ref={canvasBoxRef} style={{ height: 'calc(100vh - 108px)', minHeight: 540, width: '100%', position: 'relative' }}>
+      <div ref={canvasBoxRef} style={{ height: 'calc(100dvh - 108px)', minHeight: 360, width: '100%', position: 'relative' }}>
         <WhiteboardCanvas
           elements={elements}
           viewport={viewport}

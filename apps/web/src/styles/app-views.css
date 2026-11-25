@@ -100,6 +100,9 @@
   color: var(--text-3);
   flex-shrink: 0;
 }
+.trow .c-foot-m {
+  display: none;
+}
 .trow .meta-mini {
   display: inline-flex;
   align-items: center;
@@ -210,6 +213,7 @@
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   min-height: 44px;
+  flex-shrink: 0;
 }
 .toolbar .btn-ghost {
   height: var(--h-sm);
@@ -239,6 +243,7 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .cal-h div {
   padding: 8px 10px;
@@ -249,8 +254,9 @@
 .cal-g {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-auto-rows: minmax(112px, 1fr);
+  grid-template-rows: repeat(var(--cal-rows, 5), minmax(var(--cal-row-min, 84px), 1fr));
   flex: 1;
+  min-height: 0;
 }
 .cday {
   border-right: 1px solid var(--divider);
@@ -285,6 +291,10 @@
   place-items: center;
   border-radius: 50%;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.cday .dn:hover {
+  background: var(--surface-3);
 }
 .cday.today .dn {
   background: var(--accent);
@@ -614,8 +624,8 @@
   .tlist .trow {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 6px;
-    padding: 10px 6px;
+    gap: 6px 8px;
+    padding: 10px;
     min-height: 0;
     border: 1px solid var(--border);
     border-radius: var(--r);
@@ -624,26 +634,78 @@
   .tlist .trow > div {
     padding: 0;
   }
-  .tlist .trow .handle {
+  .tlist .trow .handle,
+  .tlist .trow .ttl .sub-spacer,
+  .tlist .trow .ttl .key {
     display: none;
-  }
-  .tlist .trow .ttl {
-    flex: 1 1 calc(100% - 30px);
-    order: 1;
   }
   .tlist .trow .c-check {
     order: 0;
+    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+  .tlist .trow .ttl {
+    flex: 1 1 calc(100% - 70px);
+    min-width: 0;
+    order: 1;
+    align-items: flex-start;
+  }
+  .tlist .trow .ttl .tt {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.3;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .tlist .trow .c-more {
+    order: 2;
+    flex-shrink: 0;
+    margin-left: auto;
+    align-self: flex-start;
   }
   .tlist .trow .c-meta {
-    order: 2;
+    order: 3;
+  }
+  .tlist .trow > .c-priority,
+  .tlist .trow > .c-due {
+    display: none;
+  }
+  .tlist .trow .c-foot-m {
+    display: flex;
+    flex: 1 0 100%;
+    order: 4;
+    align-items: center;
+    gap: 8px;
+    padding-top: 2px;
+  }
+  .tlist .trow .c-foot-m .key {
+    margin-left: auto;
+  }
+  .tlist .trow .c-priority .pillbtn {
+    padding: 0 4px;
+  }
+  .tlist .trow .c-priority .pillbtn .prio-lbl {
+    display: none;
   }
   .tlist .trow > div.c-lbl:empty {
     display: none;
   }
 }
 @media (max-width: 640px) {
+  .cal-h div {
+    padding: 6px 4px;
+    text-align: center;
+  }
   .cal-g {
-    grid-auto-rows: minmax(72px, 1fr);
+    --cal-row-min: 52px;
+  }
+  .cday {
+    padding: 4px;
+    gap: 2px;
   }
   .cev .trunc,
   .cev .av {
@@ -664,6 +726,138 @@
     border-bottom: 1px solid var(--border);
   }
 }
+/* ---------- calendar day schedule (08:00–20:00, 15m step) ---------- */
+.cday-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.cday-allday {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.cday-allday-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+}
+.cday-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px var(--gutter) 24px 0;
+  background: var(--surface);
+}
+.cday-timeline {
+  position: relative;
+}
+.cday-slot {
+  display: flex;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+.cday-time {
+  width: 56px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 10px;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transform: translateY(-5px);
+  user-select: none;
+}
+.cday-lane {
+  flex: 1;
+  height: 100%;
+  border-top: 1px solid var(--divider);
+  box-sizing: border-box;
+}
+.cday-slot.is-hour .cday-lane {
+  border-top-color: var(--border);
+}
+.cday-slot.is-half .cday-lane {
+  border-top-style: dashed;
+  border-top-color: color-mix(in srgb, var(--border) 75%, transparent);
+}
+.cday-slot.is-q .cday-lane {
+  border-top-style: dotted;
+  border-top-color: color-mix(in srgb, var(--divider) 55%, transparent);
+}
+.cday-end-label {
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 56px;
+  padding-right: 10px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  user-select: none;
+}
+.cday-events-layer {
+  position: absolute;
+  top: 0;
+  left: 60px;
+  right: 8px;
+  bottom: 0;
+  pointer-events: none;
+}
+.cday-ev-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: auto;
+  z-index: 2;
+}
+.cday-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 4;
+}
+.cday-now-badge {
+  width: 50px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #ef4444;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+}
+.cday-now-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+.cday-now-line {
+  flex: 1;
+  height: 2px;
+  background: #ef4444;
+}
+
 /* В тулбаре поиск с иконкой не растягивается (в формах .inwrap занимает всю ширину) */
 .toolbar .inwrap {
   width: auto;

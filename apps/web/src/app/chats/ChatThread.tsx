@@ -1,6 +1,6 @@
 /* Лента сообщений активного чата с автопереводом на текущий язык интерфейса, раскрытием оригинала и оценкой перевода */
 import * as React from 'react';
-import { Languages, Link2, Loader2, MessageSquare, Send, ThumbsDown, ThumbsUp, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Languages, Link2, Loader2, MessageSquare, Send, ThumbsDown, ThumbsUp, Trash2, Users } from 'lucide-react';
 import { Avatar, Badge, Button, EmptyState, IconButton, Textarea } from '@/components/ui';
 import { fmtDateTime, useLocale, useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import { useChatActions, useChatMessages, type ChatListItem, type ChatMessageDto
 interface ChatThreadProps {
   chat: ChatListItem;
   onOpenGuestLink: () => void;
+  onBack?: () => void;
 }
 
 function MessageBubble({
@@ -34,7 +35,7 @@ function MessageBubble({
   const sender = msg.senderGuestName || msg.senderName;
 
   return (
-    <div className={cn('flex flex-col gap-1 max-w-[78%]', isMine ? 'self-end items-end' : 'self-start items-start')}>
+    <div className={cn('flex flex-col gap-1 max-w-[88%] md:max-w-[78%]', isMine ? 'self-end items-end' : 'self-start items-start')}>
       <div className="flex items-center gap-1.5 text-xs muted px-1">
         <span className="font-medium text-text">{sender}</span>
         {!msg.senderMemberId && <Badge tone="violet">{t('chats.guestBadge')}</Badge>}
@@ -103,7 +104,7 @@ function MessageBubble({
   );
 }
 
-export function ChatThread({ chat, onOpenGuestLink }: ChatThreadProps) {
+export function ChatThread({ chat, onOpenGuestLink, onBack }: ChatThreadProps) {
   const t = useT();
   const locale = useLocale();
   const { data } = useWorkspace();
@@ -140,16 +141,26 @@ export function ChatThread({ chat, onOpenGuestLink }: ChatThreadProps) {
 
   return (
     <section className="flex flex-col h-full min-h-0 bg-bg">
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-surface shrink-0">
-        <Avatar name={title} size="md" tooltip={false} />
+      <header className="flex items-center gap-2.5 md:gap-3 px-3 md:px-4 py-2.5 md:py-3 border-b border-border bg-surface shrink-0">
+        {onBack && (
+          <IconButton
+            size="sm"
+            label={t('chats.title')}
+            onClick={onBack}
+            className="md:hidden shrink-0 -ml-1"
+          >
+            <ArrowLeft size={18} />
+          </IconButton>
+        )}
+        <Avatar name={title} size="md" tooltip={false} className="shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold trunc">{title}</h2>
-            <Badge tone={chat.kind === 'client' ? 'violet' : 'neutral'}>{t(`chats.kinds.${chat.kind}`)}</Badge>
+            <Badge tone={chat.kind === 'client' ? 'violet' : 'neutral'} className="shrink-0">{t(`chats.kinds.${chat.kind}`)}</Badge>
           </div>
-          <div className="flex items-center gap-2 text-xs muted mt-0.5">
+          <div className="flex items-center gap-2 text-xs muted mt-0.5 trunc">
             {chat.kind === 'client' ? (
-              <span>
+              <span className="trunc">
                 {chat.guestName ? `${chat.guestName} · ` : ''}
                 {t('chats.thread.autoTranslateHint', { lang: locale.toUpperCase() })}
               </span>
@@ -162,9 +173,9 @@ export function ChatThread({ chat, onOpenGuestLink }: ChatThreadProps) {
           </div>
         </div>
         {chat.kind === 'client' && (
-          <Button size="sm" variant={chat.guestToken ? 'secondary' : 'ghost'} onClick={onOpenGuestLink}>
+          <Button size="sm" variant={chat.guestToken ? 'secondary' : 'ghost'} onClick={onOpenGuestLink} className="shrink-0">
             <Link2 size={14} />
-            <span>{t('chats.thread.guestLink')}</span>
+            <span className="hide-m">{t('chats.thread.guestLink')}</span>
           </Button>
         )}
       </header>
@@ -197,6 +208,7 @@ export function ChatThread({ chat, onOpenGuestLink }: ChatThreadProps) {
 
       <form
         className="p-3 border-t border-border bg-surface shrink-0"
+        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}
         onSubmit={e => {
           e.preventDefault();
           void handleSend();
@@ -221,7 +233,7 @@ export function ChatThread({ chat, onOpenGuestLink }: ChatThreadProps) {
             <span className="hide-m">{t('chats.thread.send')}</span>
           </Button>
         </div>
-        <div className="text-[11px] faint mt-1.5">{t('chats.thread.sendHint')}</div>
+        <div className="text-[11px] faint mt-1.5 hide-m">{t('chats.thread.sendHint')}</div>
       </form>
     </section>
   );

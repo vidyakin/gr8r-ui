@@ -101,8 +101,8 @@ export function PriorityField({ task: t, variant = 'pill' }: { task: Task; varia
       onChange={priority => update({ priority })}
       trigger={
         <>
-          <PriorityIcon priority={t.priority} size={variant === 'icon' ? 13 : 14} />
-          {variant !== 'icon' && <span>{name}</span>}
+          <PriorityIcon priority={t.priority} size={variant === 'icon' ? 13 : undefined} />
+          {variant !== 'icon' && <span className="prio-lbl">{name}</span>}
         </>
       }
     />
