@@ -124,6 +124,17 @@ export const esPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
         ],
         screen: 'Vista previa de etiquetas 58×40 mm y carteles de precio A6/A4 con códigos EAN-13',
       },
+      {
+        title: 'Almacenamiento por ubicaciones y trazabilidad de origen / aduanas',
+        text: 'Activa el almacenamiento por celdas de forma opcional en cada almacén y rastrea el país de origen y los datos de declaración aduanera por lote desde la recepción hasta la entrega y los formularios.',
+        list: [
+          'Jerarquía opcional de ubicaciones por almacén: zona, estantería, nivel y celda',
+          'Saldos en tiempo real por ubicación con operaciones de ubicación, picking y traslados entre celdas',
+          'Seguimiento de país de origen y número de declaración aduanera por lote en recepciones y entregas',
+          'Datos de origen y aduanas trasladados automáticamente a documentos de salida y formularios imprimibles',
+        ],
+        screen: 'Jerarquía de ubicaciones de almacén con saldos por celda y trazabilidad de origen y aduanas por lote',
+      },
     ],
     chain: [
       ['docs', 'Presupuesto, pedido y factura creados en cadena.'],
@@ -138,6 +149,7 @@ export const esPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
       ['¿Cómo se registra una devolución?', 'La devolución de cliente se crea desde la entrega; la de proveedor, desde la recepción.'],
       ['¿Cómo se calculan el P&L y el análisis ABC?', 'El costo queda fijado al contabilizar la entrega. El P&L muestra beneficio bruto y margen en 6 agrupaciones (producto, categoría, cliente, gestor, organización y almacén), y el análisis ABC clasifica el surtido por ingresos y beneficio con umbrales configurables 80/15/5 y exportación a XLSX.'],
       ['¿Qué formatos de etiquetas y carteles de precio están disponibles?', 'Puedes generar códigos EAN-13 individuales o masivos y exportar PDF con vista previa para etiquetas de 58×40 y 43×25 mm y carteles de precio A6 o cuadrícula A4 desde el catálogo o las recepciones.'],
+      ['¿Incluye ubicaciones de almacén y control de origen o aduanas?', 'Sí. Puedes activar opcionalmente el almacenamiento por ubicaciones en cada almacén (jerarquía zona/estantería/nivel/celda, saldos por celda, ubicación, picking y traslados) y registrar país de origen y número de declaración aduanera por lote en recepciones, entregas y formularios imprimibles.'],
     ],
   },
 };

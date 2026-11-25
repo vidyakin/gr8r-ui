@@ -108,6 +108,17 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         ],
         screen: 'Position permissions: record visibility scope and hidden sensitive fields',
       },
+      {
+        title: 'Login security: 2FA, IP allowlist & audit log',
+        text: 'Protect your workspace with two-factor authentication and trusted IP rules. Policies are enforced consistently across web sessions, Bearer tokens, WebSockets, and MCP.',
+        list: [
+          'Two-factor authentication (TOTP authenticator app + QR setup + 10 one-time recovery codes)',
+          'Workspace-wide mandatory 2FA toggle for all team members',
+          'IPv4/IPv6/CIDR allowlist with built-in admin self-lockout protection',
+          'Login audit log tracking attempts, IPs, and channels (sessions, Bearer tokens, WebSockets, MCP)',
+        ],
+        screen: 'Login security settings: TOTP 2FA QR setup, IP allowlist, and login audit log',
+      },
     ],
     chain: [
       ['crm', 'Customer, deal, acquisition source, and campaign.'],
@@ -122,6 +133,7 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['How is a campaign linked to a lead?', 'Via utm_campaign passed from the web form and matched to an active campaign. Archived campaigns are not matched.'],
       ['How does the embeddable AI widget work with managers?', 'Embed it on any website with a <script> tag and domain allowlist so it answers from your company knowledge base. Clicking “Call manager” hands the chat over to built-in multilingual Chats with automatic contextual translation, and any chat converts into a lead in one click.'],
       ['Can we hide deal amounts and client contacts from certain roles?', 'Yes. Each position has a record visibility scope (“All”, “Department + sub-departments”, or “Own only”, enforced by PostgreSQL RLS) and a list of hidden fields: deal amounts/probabilities, phones/emails, bank details, document totals, and custom fields.'],
+      ['Does FutureERP support 2FA and IP restrictions?', 'Yes. You can enable TOTP two-factor authentication (QR setup + 10 one-time recovery codes), enforce workspace-wide mandatory 2FA, configure an IPv4/IPv6/CIDR allowlist with admin self-lockout protection, and review the login audit log — all enforced across sessions, Bearer tokens, WebSockets, and MCP.'],
     ],
   },
   docs: {
@@ -150,6 +162,26 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         list: ['Multiple quote options with primary selection', 'Toggle product images in templates with a checkbox', 'Export multiple invoices in a single ZIP archive'],
         screen: 'Printable quote PDF layout',
       },
+      {
+        title: 'External supplier portal',
+        text: 'Collaborate with vendors over a secure rotatable link — no workspace account or extra user seat required. Each supplier sees only their own purchase orders.',
+        list: [
+          'Token-based rotatable portal link with zero workspace onboarding for vendors',
+          'Suppliers confirm, mark shipped, or decline orders and set expected ship dates',
+          'Order comments and direct invoice uploads (PDF, images, XLSX) attached straight to the purchase order',
+        ],
+        screen: 'Supplier portal: vendor purchase orders, shipping statuses, comments, and invoice uploads',
+      },
+      {
+        title: 'Multi-country & multi-currency packs',
+        text: 'Modular per-organization country packs tailor VAT rates, currencies, tax ID checksum validation, print forms, and bank statements for each legal entity.',
+        list: [
+          'UAE pack: AED currency, VAT 5% / 0% / exempt, TRN and IBAN validation',
+          'Additional ready-made regional packs (including Kazakhstan and CIS) with local VAT rates, print forms, and bank statement parsers',
+          'Extensible CountryPack architecture to configure new countries and entities inside one workspace',
+        ],
+        screen: 'Organization settings: country pack selection (UAE, regional packs), currency, and VAT rates',
+      },
     ],
     chain: [
       ['crm', 'Customer, owner, and acquisition source.'],
@@ -162,6 +194,8 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['Can a posted document be edited?', 'No — unpost it first. Unposting is blocked while downstream documents created from it remain posted.'],
       ['Can you ship more than ordered?', 'No. Fulfillment cannot exceed ordered quantities; new documents default to the remaining balance.'],
       ['How do we get a printable PDF?', 'Open the print view right from any document and download PDF. Multiple invoices can be exported as one archive.'],
+      ['Do suppliers need a workspace account to use the Supplier Portal?', 'No. Vendors open a secure rotatable link that shows only their own purchase orders. They can confirm, mark shipped, or decline orders, set expected ship dates, leave comments, and upload invoices (PDF, images, XLSX) directly into the order.'],
+      ['Does FutureERP support multiple countries and currencies?', 'Yes. Modular Country Packs are configured per organization with local VAT rates, currencies, tax ID checksum validation, print forms, and bank statements — including UAE (AED, VAT 5%/0%/exempt, TRN, IBAN) alongside extensible regional packs such as Kazakhstan.'],
     ],
   },
 };
