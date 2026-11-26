@@ -48,6 +48,7 @@ export * from './industry';
 export * from './fleet';
 export * from './trips';
 export * from './transport-orders';
+export * from './transport-analytics';
 export * from './routing';
 export * from './routing-adapters';
 export * from './attachments';

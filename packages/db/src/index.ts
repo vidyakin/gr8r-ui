@@ -91,6 +91,7 @@ export * from './api-tokens';
 export * from './fleet';
 export * from './trips';
 export * from './transport-orders';
+export * from './transport-analytics';
 export * from './transport-waybill';
 export * from './routing';
 export * from './routing-trips';

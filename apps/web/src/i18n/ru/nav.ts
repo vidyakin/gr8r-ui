@@ -84,6 +84,7 @@ export const sections: Widen<typeof S> = {
   trips: 'Рейсы',
   transportOrders: 'Заявки на перевозку',
   rateSchedules: 'Тарифы по направлениям',
+  transportAnalytics: 'Аналитика транспорта',
   approvals: 'Согласования',
   driverWorkplace: 'Место водителя',
   dispatch: 'Диспетчер',

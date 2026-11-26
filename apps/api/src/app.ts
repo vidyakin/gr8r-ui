@@ -51,6 +51,7 @@ import { deliveryMethodRoutes, deliveryRoutes } from './routes/delivery';
 import { fleetRoutes } from './routes/fleet';
 import { weighingRoutes } from './routes/weighings';
 import { tripRoutes } from './routes/trips';
+import { transportAnalyticsRoutes } from './routes/transport-analytics';
 import { transportOrderRoutes } from './routes/transport-orders';
 import { positionRoutes, productKindRoutes } from './routes/positions';
 import { departmentRoutes } from './routes/departments';
@@ -236,6 +237,7 @@ function buildTenantApi() {
     .route('/delivery-methods', deliveryMethodRoutes)
     .route('/deliveries', deliveryRoutes)
     .route('/fleet', fleetRoutes)
+    .route('/trips', transportAnalyticsRoutes)
     .route('/trips', tripRoutes)
     .route('/transport-orders', transportOrderRoutes)
     .route('/positions', positionRoutes)

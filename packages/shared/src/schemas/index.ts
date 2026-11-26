@@ -32,6 +32,7 @@ export * from './pipelines';
 export * from './fleet';
 export * from './trips';
 export * from './transport-orders';
+export * from './transport-analytics';
 export * from './routing';
 export * from './loyalty';
 export * from './objects';

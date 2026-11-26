@@ -62,7 +62,11 @@ export function useRealtime(ws: string, engine: Engine, enabled = true) {
       // рейсы (задача 1211) — fleet_trip; доставки меняют экран диспетчера
       if (e.entity.startsWith('fleet_') || e.entity === 'position' || e.entity === 'delivery') batch.add(['ws', ws, 'fleet']);
       // Заявки на перевозку и экономика рейса (задача 1223): ['ws', id, 'transport-orders', …]
-      if (e.entity.startsWith('transport_') || e.entity.startsWith('fleet_')) batch.add(['ws', ws, 'transport-orders']);
+      if (e.entity.startsWith('transport_') || e.entity.startsWith('fleet_')) {
+        batch.add(['ws', ws, 'transport-orders']);
+        batch.add(['ws', ws, 'fleet', 'trips', 'analytics']);
+      }
+      if (e.entity === 'document') batch.add(['ws', ws, 'fleet', 'trips', 'analytics']);
       // Шаблоны проектов: ['ws', id, 'project-templates', …]
       if (e.entity === 'project_template') batch.add(['ws', ws, 'project-templates']);
       // Шаблоны КП: ['ws', id, 'doc-templates', …]

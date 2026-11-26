@@ -190,6 +190,8 @@ export const SECTIONS = {
   // Транспорт: заявки на перевозку и тарифы (задача 1223)
   transportOrders: { path: '/transport-orders', name: 'Transport orders', icon: FileSignature },
   rateSchedules: { path: '/transport-orders/rates', name: 'Rate schedules', icon: ListChecks },
+  // Транспорт: аналитика (задача 1216)
+  transportAnalytics: { path: '/trips/analytics', name: 'Transport analytics', icon: ChartNoAxesCombined },
   // Договоры и биллинг
   objects: { path: '/objects', name: 'Objects', icon: Building2 },
   // Прогноз прибыли по объектам (задача 1275): портфель — только owner/admin, остальным сервер отвечает 403
@@ -281,7 +283,7 @@ export const NAV_GROUPS = {
   },
   transport: {
     icon: Truck,
-    items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'transportOrders' }, { id: 'rateSchedules' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
+    items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'transportOrders' }, { id: 'rateSchedules' }, { id: 'transportAnalytics' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
   },
   docflow: {
     icon: Stamp,
@@ -386,6 +388,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   billing: 'services',
   deliveries: 'deliveries',
   myDeliveries: 'deliveries',
+  transportAnalytics: 'transport',
   money: 'finance',
   moneyCalendar: 'finance',
   moneyRequests: 'finance',

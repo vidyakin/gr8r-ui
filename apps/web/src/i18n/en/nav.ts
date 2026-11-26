@@ -82,6 +82,7 @@ export const sections = {
   trips: 'Trips',
   transportOrders: 'Transport orders',
   rateSchedules: 'Rate schedules',
+  transportAnalytics: 'Transport analytics',
   approvals: 'Approvals',
   driverWorkplace: 'Driver workplace',
   dispatch: 'Dispatcher',
