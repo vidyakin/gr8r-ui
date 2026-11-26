@@ -85,6 +85,7 @@ import { entityRoutes } from './routes/meta';
 import { whiteboardRoutes } from './routes/whiteboards';
 import { chatRoutes } from './routes/chats';
 import { publicChatRoutes } from './routes/public-chats';
+import { publicDeliveryRoutes } from './routes/public-delivery';
 import { publicSupplierRoutes } from './routes/public-supplier';
 import { supplierPortalRoutes } from './routes/supplier-portal';
 import { mcpRoutes } from './mcp/server';
@@ -341,6 +342,7 @@ export function createApp(deps: AppDeps) {
     .route('/admin', adminRoutes)
     .route('/hooks', hookRoutes)
     .route('/public/chats', publicChatRoutes)
+    .route('/public/delivery', publicDeliveryRoutes)
     .route('/public/supplier', publicSupplierRoutes)
     .route('/mcp', mcpRoutes(() => self!))
     .route('/v1', v1Routes)

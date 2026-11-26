@@ -163,6 +163,7 @@ const WeighingsPage = lazyPage(() => import('./mining/WeighingsPage'), 'Weighing
 const ChatsPage = lazyPage(() => import('./chats/ChatsPage'), 'ChatsPage');
 const SupplierPortalPage = lazyPage(() => import('./portal/SupplierPortalPage'), 'SupplierPortalPage');
 const PublicChatPage = lazyPage(() => import('./chats/PublicChatPage'), 'PublicChatPage');
+const PublicDeliveryPage = lazyPage(() => import('./services/deliveries/PublicDeliveryPage'), 'PublicDeliveryPage');
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
@@ -371,6 +372,8 @@ export const router = createHashRouter([
   { path: '/s/:token', element: <React.Suspense fallback={null}><SupplierPortalPage /></React.Suspense> },
   // публичный гостевой чат по ссылке: без входа
   { path: '/c/:token', element: <React.Suspense fallback={null}><PublicChatPage /></React.Suspense> },
+  // публичное отслеживание доставки клиентом по токену: без входа
+  { path: '/d/:token', element: <React.Suspense fallback={null}><PublicDeliveryPage /></React.Suspense> },
   { path: '/setup-2fa', element: <React.Suspense fallback={null}><TotpEnrollmentPage /></React.Suspense> },
   { path: '/signin', element: <SignInPage /> },
   { path: '/signup', element: <SignUpPage /> },

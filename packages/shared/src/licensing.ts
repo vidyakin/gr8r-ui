@@ -91,7 +91,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: ['/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/deliveries', '/delivery-methods', '/appointments', '/repair-items'],
     sections: ['workOrders', 'repairItems', 'servicesTimesheet', 'servicesPlanner', 'servicesReports', 'contracts', 'tariffPlans', 'billing', 'deliveries', 'myDeliveries', 'crmAppointments'],
     settings: ['work-orders', 'delivery-methods'],
-    jobs: ['billing.export_zip', 'contract.pdf'],
+    jobs: ['billing.export_zip', 'contract.pdf', 'delivery.notify'],
   }),
   def({
     id: 'money',

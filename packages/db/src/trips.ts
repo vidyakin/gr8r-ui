@@ -23,6 +23,7 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { changeDeliveryStatus, listDeliveries, type DeliveryView } from './delivery';
+import { enqueueDeliveryNotifications } from './delivery-notify';
 import { createBasedOn, postDocument, updateDocument, type DocCtx } from './documents';
 import { createPayment } from './payments';
 import { createPaymentLink } from './integrations';
@@ -417,8 +418,9 @@ async function addDeliveryStop(db: Db, ctx: DocCtx, t: TripRow, deliveryId: stri
   if (!d.lat && !d.geoStatus && d.address.trim()) await requestGeocode(db, ctx.workspaceId, 'delivery', d.id);
   await clearRoute(db, [t.id]);
   // курьер доставки — водитель рейса; дата — день точки
-  await db.update(deliveries).set({ courierMemberId: t.driverMemberId, deliveryDate: day, ...(d.status === 'new' ? { status: 'assigned' as const } : {}), updatedAt: new Date() }).where(eq(deliveries.id, deliveryId));
+  const [updatedDelivery] = await db.update(deliveries).set({ courierMemberId: t.driverMemberId, deliveryDate: day, ...(d.status === 'new' ? { status: 'assigned' as const } : {}), updatedAt: new Date() }).where(eq(deliveries.id, deliveryId)).returning();
   if (t.status === 'in_transit') await changeDeliveryStatus(db, ctx, deliveryId, 'in_transit', undefined, true);
+  else if (d.status === 'new' && updatedDelivery) await enqueueDeliveryNotifications(db, ctx, updatedDelivery, 'status_assigned');
   await event(db, ctx, 'delivery', 'updated', deliveryId, { documentId: d.documentId, changes: ['courierMemberId', 'tripId'] });
   await enforceCapacity(db, ctx, t);
   await event(db, ctx, 'fleet_trip', 'updated', t.id, { number: t.number, changes: ['stops'] });

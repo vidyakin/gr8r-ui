@@ -63,6 +63,7 @@ export * from './repeat-sales';
 export * from './sales-plan';
 export * from './appointments';
 export * from './delivery';
+export * from './delivery-notify';
 export * from './positions';
 export * from './departments';
 export * from './project-templates';

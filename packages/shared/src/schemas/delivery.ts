@@ -1,6 +1,7 @@
 /* zod-схемы доставки (задача 1100, docs/architecture/delivery.md). */
 import { z } from 'zod';
-import { DELIVERY_KINDS, DELIVERY_STATUSES } from '../delivery';
+import { DELIVERY_KINDS, DELIVERY_NOTIFICATION_CHANNELS, DELIVERY_NOTIFICATION_EVENTS, DELIVERY_STATUSES } from '../delivery';
+import { isEmailAddress } from '../email';
 import { decimal, hhmm, isoDate, listQuery, uuid } from './common';
 
 const nonNeg = decimal.refine(v => Number(v) >= 0, 'Expected a non-negative number');
@@ -26,6 +27,8 @@ export const deliverySave = z.object({
   address: z.string().trim().max(500).optional(),
   contactName: z.string().trim().max(200).optional(),
   contactPhone: z.string().trim().max(50).optional(),
+  contactEmail: z.string().trim().max(200).refine(v => v === '' || isEmailAddress(v), 'Invalid email').optional(),
+  trackingEnabled: z.boolean().optional(),
   deliveryDate: isoDate.nullish(),
   windowFrom: hhmm.nullish(),
   windowTo: hhmm.nullish(),
@@ -64,5 +67,15 @@ export const deliveryReportQuery = z.object({
   from: isoDate,
   to: isoDate,
   by: z.enum(['method', 'courier', 'day', 'month']).default('method'),
+});
+
+export const deliveryTrackingUpdate = z.strictObject({
+  enabled: z.boolean().optional(),
+  rotate: z.boolean().optional(),
+}).refine(v => v.enabled !== undefined || v.rotate === true, 'Specify enabled or rotate');
+
+export const deliveryNotifySend = z.strictObject({
+  channel: z.enum(DELIVERY_NOTIFICATION_CHANNELS).optional(),
+  eventKind: z.enum(DELIVERY_NOTIFICATION_EVENTS).optional(),
 });
 

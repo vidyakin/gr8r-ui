@@ -97,6 +97,8 @@ export const errors = {
   courier_inactive: 'The courier is deactivated',
   delivery_method_required: 'Select a delivery method first',
   delivery_product_required: 'The delivery method has no service for the document line',
+  delivery_email_invalid: 'Enter a valid email address for delivery notifications',
+  delivery_notify_no_recipient: 'Set a recipient phone or email before sending a notification',
   period_out_of_range: 'A plan line is outside the project horizon',
   invalid_rate: 'The discount rate cannot be negative',
   // брак и возвратные отходы (задача 1136)
