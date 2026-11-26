@@ -87,6 +87,8 @@ export const productCreate = z.object({
   /** Значения характеристик категории; проверяются по схеме категории (с унаследованными) */
   attrs: z.record(z.string(), z.unknown()).optional(),
   isActive: z.boolean().default(true),
+  /** Комплект (набор как в УНФ): продаётся с автосписанием составляющих без производства */
+  isKit: z.boolean().default(false),
   /** Учёт по серийным номерам: складские документы требуют номера по количеству */
   trackSerials: z.boolean().default(false),
   /** Партионный учёт (задача 1187): приход создаёт партию, расход списывается FEFO */
@@ -131,3 +133,17 @@ export const productUnitsBody = z.object({
     .max(20),
 });
 export type ProductUnitsBody = z.infer<typeof productUnitsBody>;
+
+/** Состав комплекта (набора): список составляющих и необязательные доли цены */
+export const productKitItemsBody = z.object({
+  items: z
+    .array(
+      z.object({
+        componentProductId: uuid,
+        qty: decimal.refine(v => Number(v) > 0 && Number(v) < 1e12, 'Must be greater than zero'),
+        priceShare: decimal.refine(v => Number(v) >= 0 && Number(v) < 1e12, 'Must not be negative').nullish(),
+      }),
+    )
+    .max(100),
+});
+export type ProductKitItemsBody = z.infer<typeof productKitItemsBody>;

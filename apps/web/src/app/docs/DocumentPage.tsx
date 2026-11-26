@@ -94,6 +94,7 @@ interface FormLine {
   batchNumber: string;
   batchProducedAt: string;
   batchExpiresAt: string;
+  isKit?: boolean;
 }
 
 interface Form {
@@ -173,7 +174,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor ?? '1', qty: trimNum(l.unitQty ?? l.qty), price: l.price ?? '0', discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', binId: l.binId ?? null, toBinId: l.toBinId ?? null, gtdNumber: l.gtdNumber ?? '', originCountry: l.originCountry ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor ?? '1', qty: trimNum(l.unitQty ?? l.qty), price: l.price ?? '0', discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', binId: l.binId ?? null, toBinId: l.toBinId ?? null, gtdNumber: l.gtdNumber ?? '', originCountry: l.originCountry ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '', isKit: l.isKit ?? false })),
   };
 }
 
@@ -413,7 +414,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const pickProduct = (key: string, row: number, p: Product) => {
     // у внутренних документов цена — себестоимость: её подставляет сервер
     if (!showTotals) return;
-    patchLine(key, { ...(latest.current.lines.find(l => l.key === key)?.productId !== p.id ? { binId: null, toBinId: null, gtdNumber: '', originCountry: '' } : {}), productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: pack.vatRates.includes(p.vatRate) ? p.vatRate : defaultVatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
+    patchLine(key, { ...(latest.current.lines.find(l => l.key === key)?.productId !== p.id ? { binId: null, toBinId: null, gtdNumber: '', originCountry: '' } : {}), productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: pack.vatRates.includes(p.vatRate) ? p.vatRate : defaultVatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null, isKit: p.isKit });
     focusReq.current = { row, col: 1 };
     // цена по виду цен документа на его дату (договор, контрагент, вид заказ-наряда…); карточка товара — пока ответа нет
     if (!internal && meta.party !== null) {
@@ -734,11 +735,45 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="faint num">{i + 1}</td>
                       <td>
                         {/* артикул — мелко над названием: вся ширина ячейки остаётся названию */}
-                        {srv?.sku && <div className="mono faint line-sku">{srv.sku}</div>}
+                        {(srv?.sku || l.isKit || srv?.isKit) && (
+                          <div className="row" style={{ gap: 6, marginBottom: 2 }}>
+                            {(l.isKit || srv?.isKit) && <Badge tone="blue">{t('docs.document.kitBadge')}</Badge>}
+                            {srv?.sku && <span className="mono faint line-sku">{srv.sku}</span>}
+                          </div>
+                        )}
                         {linesEditable ? (
                           <ProductField id={l.productId} name={l.name} dataCell={`${i}:0`} price={priceField} counterpartyId={partnerId} partnerArticles={partnerArts} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
                         ) : (
                           <ProductField id={l.productId} name={l.name} disabled onPick={() => undefined} />
+                        )}
+                        {(l.isKit || srv?.isKit) && !!srv?.kitItems?.length && (
+                          <details className="mt-1 text-xs">
+                            <summary className="muted cursor-pointer">
+                              {t('docs.document.kitComponents', { n: srv.kitItems.length })}
+                            </summary>
+                            <div className="table-wrap" style={{ marginTop: 4 }}>
+                              <table className="dtbl" style={{ fontSize: 11.5 }}>
+                                <thead>
+                                  <tr>
+                                    <th>{t('docs.document.kitColComponent')}</th>
+                                    <th className="num">{t('docs.document.kitColQty')}</th>
+                                    <th className="num">{t('docs.document.kitColAmount')}</th>
+                                    {srv.kitItems.some(k => k.cogs !== null) && <th className="num">{t('docs.document.kitColCogs')}</th>}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {srv.kitItems.map(k => (
+                                    <tr key={k.componentProductId}>
+                                      <td>{k.componentName}</td>
+                                      <td className="num">{trimNum(k.qty)}</td>
+                                      <td className="num">{money(k.total)}</td>
+                                      {srv.kitItems!.some(x => x.cogs !== null) && <td className="num muted">{k.cogs !== null ? money(k.cogs) : '—'}</td>}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </details>
                         )}
                         {l.productId && (!srv || srv.kind === 'goods') && (sourceWithBins || destinationWithBins || hasCustoms) && (
                           <details className="mt-1 text-xs">

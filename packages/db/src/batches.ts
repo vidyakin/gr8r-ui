@@ -167,14 +167,17 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
       if (left > 0n) take(left);
     }
     out.push(...portions);
-    if (r.lineId) outOfLine.set(r.lineId, [...(outOfLine.get(r.lineId) ?? []), ...portions]);
+    if (r.lineId) {
+      const pk = `${r.lineId}:${r.productId}`;
+      outOfLine.set(pk, [...(outOfLine.get(pk) ?? []), ...portions]);
+    }
   }
   for (const r of reqs) {
     if (r.direction !== 'in') continue;
     if (!tracked.has(r.productId) || !r.lineId) { out.push(r); continue; }
     if (r.costFromLine) {
       let left = r.qty;
-      for (const portion of outOfLine.get(r.lineId) ?? []) {
+      for (const portion of outOfLine.get(`${r.lineId}:${r.productId}`) ?? []) {
         if (left <= 0n) break;
         const qty = portion.qty < left ? portion.qty : left;
         const source = portion.batchId ? byId.get(portion.batchId)! : null;

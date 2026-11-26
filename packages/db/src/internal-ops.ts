@@ -22,10 +22,12 @@ export async function ensureTransitWarehouse(db: Db, workspaceId: string): Promi
   return w.id;
 }
 
-/** Строки с товарами (услуги склад не двигают) */
+/** Строки с товарами (услуги склад не двигают; комплекты в перемещениях запрещены) */
 async function goodsLines(db: Db, lines: DocumentLineRow[]): Promise<DocumentLineRow[]> {
   if (!lines.length) return [];
-  const kinds = new Map((await db.select({ id: products.id, kind: products.kind }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]))).map(p => [p.id, p.kind]));
+  const rows = await db.select({ id: products.id, kind: products.kind, isKit: products.isKit }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]));
+  if (rows.some(p => p.isKit)) throw new DomainError(422, 'kit_not_stockable', 'Kit products do not have their own stock and can only be sold or returned');
+  const kinds = new Map(rows.map(p => [p.id, p.kind]));
   return lines.filter(l => kinds.get(l.productId) === 'goods');
 }
 

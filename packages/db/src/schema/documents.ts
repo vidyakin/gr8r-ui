@@ -729,3 +729,36 @@ export const documentExports = pgTable(
     index('document_exports_ws_idx').on(t.workspaceId, t.createdAt),
   ],
 );
+
+/** Распределение цены и себестоимости строки комплекта по составляющим (снимок при проведении документа) */
+export const documentLineKitItems = pgTable(
+  'document_line_kit_items',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    documentLineId: uuid('document_line_id').notNull(),
+    componentProductId: uuid('component_product_id').notNull(),
+    qtyPerKit: numeric('qty_per_kit', { precision: 18, scale: 3 }).notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    priceShare: numeric('price_share', { precision: 18, scale: 4 }),
+    unitPrice: money('unit_price').notNull().default('0'),
+    net: money('net').notNull().default('0'),
+    vatAmount: money('vat_amount').notNull().default('0'),
+    total: money('total').notNull().default('0'),
+    unitCost: numeric('unit_cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    cogs: money('cogs').notNull().default('0'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('document_line_kit_items_ws_id_uq').on(t.workspaceId, t.id),
+    unique('document_line_kit_items_line_comp_uq').on(t.workspaceId, t.documentLineId, t.componentProductId),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_line_kit_items_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'document_line_kit_items_line_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.componentProductId], foreignColumns: [products.workspaceId, products.id], name: 'document_line_kit_items_component_fk' }),
+    check('document_line_kit_items_qty_chk', sql`${t.qtyPerKit} > 0 and ${t.qty} > 0`),
+    index('document_line_kit_items_doc_idx').on(t.workspaceId, t.documentId),
+    index('document_line_kit_items_line_idx').on(t.workspaceId, t.documentLineId, t.sortOrder),
+  ],
+);

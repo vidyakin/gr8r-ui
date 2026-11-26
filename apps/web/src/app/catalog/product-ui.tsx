@@ -7,7 +7,7 @@ import { useIndustry } from '../industry/data';
 import { Barcode, Building2, Factory, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, Scale, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
 import { getCountryPack, PRODUCT_KINDS, validateRecord, type CountryPack, type ProductKind } from '@erp/shared';
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
-import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, IconButton, MenuItem, Segmented, Switch, toast } from '@/components/ui';
+import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, IconButton, MenuItem, Segmented, Switch, toast, Badge } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/erp/entity-drawer';
 import { fmtDate } from '../lib/dates';
 import { useHasModule } from '../licensing/data';
@@ -17,6 +17,7 @@ import type { MetaField } from '../meta/data';
 import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useSuppliers, useIsAdmin, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
 import { StockLevelsTab } from './stock-levels';
 import { ProductUnitsSection } from './product-units';
+import { ProductKitSection } from './product-kits';
 import { useDefaultOrganization } from '../docs/data';
 import { vatLabel } from '../docs/vat';
 import { ProductPartnerArticles } from '../docs/partner-codes';
@@ -300,6 +301,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           <span className="row" style={{ gap: 6, fontSize: 12.5 }}>
             <KindIcon size={14} />
             {kindLabel(p.kind)}
+            {p.isKit && <Badge tone="blue">{t('catalog.kitBadge')}</Badge>}
             {p.sku && <span className="mono faint">{p.sku}</span>}
           </span>
         }
@@ -384,11 +386,16 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           row(Power, t('catalog.product.active'), <Switch checked={p.isActive} aria-label={t('catalog.product.active')} onChange={e => save({ isActive: e.target.checked })} />, p.isActive ? t('common.yes') : t('common.no')),
           ...(p.kind === 'goods'
             ? [
-                row(ScanBarcode, t('serials.product.track'), <Switch checked={p.trackSerials} aria-label={t('serials.product.track')} onChange={e => save({ trackSerials: e.target.checked })} />, p.trackSerials ? t('common.yes') : t('common.no')),
-                ...(batchUi
+                row(Layers, t('catalog.product.isKit'), <Switch checked={p.isKit} aria-label={t('catalog.product.isKit')} onChange={e => save({ isKit: e.target.checked })} />, p.isKit ? t('common.yes') : t('common.no')),
+                ...(!p.isKit
                   ? [
-                      row(Package, t('serials.product.trackBatches'), <Switch checked={p.trackBatches} aria-label={t('serials.product.trackBatches')} onChange={e => save({ trackBatches: e.target.checked })} />, p.trackBatches ? t('common.yes') : t('common.no')),
-                      ...(p.trackBatches ? [row(Timer, t('serials.product.shelfLifeDays'), <FieldInput field={F.shelfLifeDays} value={p.shelfLifeDays ?? 0} onChange={v => save({ shelfLifeDays: Number(v) > 0 ? Math.round(Number(v)) : null })} />, String(p.shelfLifeDays ?? '—'))] : []),
+                      row(ScanBarcode, t('serials.product.track'), <Switch checked={p.trackSerials} aria-label={t('serials.product.track')} onChange={e => save({ trackSerials: e.target.checked })} />, p.trackSerials ? t('common.yes') : t('common.no')),
+                      ...(batchUi
+                        ? [
+                            row(Package, t('serials.product.trackBatches'), <Switch checked={p.trackBatches} aria-label={t('serials.product.trackBatches')} onChange={e => save({ trackBatches: e.target.checked })} />, p.trackBatches ? t('common.yes') : t('common.no')),
+                            ...(p.trackBatches ? [row(Timer, t('serials.product.shelfLifeDays'), <FieldInput field={F.shelfLifeDays} value={p.shelfLifeDays ?? 0} onChange={v => save({ shelfLifeDays: Number(v) > 0 ? Math.round(Number(v)) : null })} />, String(p.shelfLifeDays ?? '—'))] : []),
+                          ]
+                        : []),
                     ]
                   : []),
               ]
@@ -449,6 +456,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             </dl>
           )}
         </DrawerSection>
+        {p.kind === 'goods' && p.isKit && <ProductKitSection product={p} />}
         {p.kind === 'goods' && <ProductUnitsSection product={p} />}
         <StockLevelsTab productId={p.id} />
         <ProductPartnerArticles productId={p.id} baseUnit={p.unitCode} />
@@ -543,6 +551,7 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
   const [price, setPrice] = React.useState('');
   const [purchase, setPurchase] = React.useState('');
   const [bulkDensity, setBulkDensity] = React.useState('');
+  const [isKit, setIsKit] = React.useState(false);
   const [attrs, setAttrs] = React.useState<Record<string, unknown>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
@@ -565,7 +574,7 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
     if (Object.keys(errs).length || !check.ok) return;
     setBusy(true);
     try {
-      const row = await m.create.mutateAsync({ kind, name: name.trim(), sku: sku.trim(), barcode: barcode.trim(), categoryId, unitCode, vatRate: vat, price: String(num(price)), purchasePrice: String(num(purchase)), ...(hasMining && kind === 'goods' && num(bulkDensity) > 0 ? { bulkDensity: num(bulkDensity) } : {}), attrs: check.data });
+      const row = await m.create.mutateAsync({ kind, isKit: kind === 'goods' ? isKit : false, name: name.trim(), sku: sku.trim(), barcode: barcode.trim(), categoryId, unitCode, vatRate: vat, price: String(num(price)), purchasePrice: String(num(purchase)), ...(hasMining && kind === 'goods' && num(bulkDensity) > 0 ? { bulkDensity: num(bulkDensity) } : {}), attrs: check.data });
       toast(t('catalog.product.added', { name: row.name }));
       onCreated(row);
     } catch (e) {
@@ -601,8 +610,15 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
         >
           <Segmented aria-label={t('catalog.product.type')} value={kind} onValueChange={next => {
             setKind(next);
+            if (next !== 'goods') setIsKit(false);
             setUnitCode(unit => next === 'service' && unit === '796' ? '356' : next === 'goods' && unit === '356' ? '796' : unit);
           }} items={PRODUCT_KINDS.map(k => ({ value: k, label: kindLabel(k) }))} />
+          {kind === 'goods' && (
+            <label className="row" style={{ gap: 8, fontSize: 13 }}>
+              <Switch checked={isKit} aria-label={t('catalog.product.isKit')} onChange={e => setIsKit(e.target.checked)} />
+              <span>{t('catalog.product.isKit')}</span>
+            </label>
+          )}
           <Field label={t('common.name')} error={errors.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErrors(s => ({ ...s, name: '' })))} />}
           </Field>

@@ -601,6 +601,12 @@ export const docs = {
     groupPurchases: 'Purchases',
     groupProduction: 'Production orders',
     groupStock: 'Stock documents',
+    kitBadge: 'Kit',
+    kitComponents: 'Kit components ({n})',
+    kitColComponent: 'Component',
+    kitColQty: 'Qty',
+    kitColAmount: 'Amount',
+    kitColCogs: 'COGS',
   },
 
   /* ----------- карточка документа: табличная часть ----------- */

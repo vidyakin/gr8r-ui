@@ -14,6 +14,7 @@ export * from './documents';
 export { workspaceVatDefaults } from './organizations';
 export * from './partner-articles';
 export * from './product-units';
+export * from './product-kits';
 export * from './supplier-prices';
 export * from './supplier-rating';
 export * from './loyalty';

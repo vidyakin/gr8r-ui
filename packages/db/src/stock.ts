@@ -131,16 +131,19 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   /** Фактическая цена расхода по строке документа — ею оценивается приход перемещения.
       Расход порциями FEFO даёт несколько цен — берём средневзвешенную по количеству */
   const outCost = new Map<string, Dec>();
+  const outCostByProduct = new Map<string, Dec>();
   /** Сумма (цена × количество) и количество по строке — для средневзвешенной цены расхода */
   const outSum = new Map<string, Dec>();
   const outQty = new Map<string, Dec>();
+  const outProdSum = new Map<string, Dec>();
+  const outProdQty = new Map<string, Dec>();
   const advance = stockMovementAccumulator();
   const apply = (r: MoveRequest) => {
     const k = keyOf(r);
     const s = state.get(k)!;
     const trace = { binId: r.binId ?? null, gtdNumber: r.gtdNumber ?? null, originCountry: r.originCountry ?? null };
     if (r.direction === 'in') {
-      const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? outCost.get(r.lineId) : undefined) ?? s.avg;
+      const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? (outCostByProduct.get(`${r.lineId}:${r.productId}`) ?? outCost.get(r.lineId)) : undefined) ?? s.avg;
       const next = advance(s, r.qty, cost, r.lineId ? `${k}:${r.lineId}:${r.phase ?? 1}` : undefined);
       state.set(k, next.state);
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, ...trace, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
@@ -152,6 +155,9 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
       if (r.lineId) {
         outSum.set(r.lineId, (outSum.get(r.lineId) ?? 0n) + o.cost * r.qty);
         outQty.set(r.lineId, (outQty.get(r.lineId) ?? 0n) + r.qty);
+        const pk = `${r.lineId}:${r.productId}`;
+        outProdSum.set(pk, (outProdSum.get(pk) ?? 0n) + o.cost * r.qty);
+        outProdQty.set(pk, (outProdQty.get(pk) ?? 0n) + r.qty);
       }
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, ...trace, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     }
@@ -163,6 +169,7 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   }
   for (const r of reqs) if (r.direction === 'out') apply(r);
   for (const [lineId, sum] of outSum) outCost.set(lineId, sum / (outQty.get(lineId) ?? 1n));
+  for (const [pk, sum] of outProdSum) outCostByProduct.set(pk, sum / (outProdQty.get(pk) ?? 1n));
   if (!settings.allowNegativeStock) {
     const shortages = new Map<string, { key: StockKey; available: Dec; needed: Dec }>();
     for (const [k, s] of state) {
@@ -394,6 +401,7 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
   const state = new Map<string, StockState>();
   /** Удорожание единицы последнего расхода по строке документа */
   const outDelta = new Map<string, Dec>();
+  const outDeltaByProduct = new Map<string, Dec>();
   let changed = 0;
   const advance = stockMovementAccumulator();
   for (const m of moves) {
@@ -407,7 +415,10 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
       const o = advance(s, qty, 0n);
       state.set(k, o.state);
       delta = r4(o.cost) - base;
-      if (m.lineId) outDelta.set(m.lineId, delta);
+      if (m.lineId) {
+        outDelta.set(m.lineId, delta);
+        outDeltaByProduct.set(`${m.lineId}:${m.productId}`, delta);
+      }
     } else {
       let chain = 0n;
       const rel = m.type === 'production' && m.lineId ? releaseLines.get(m.lineId) : undefined;
@@ -420,8 +431,12 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
       } else if (rel && rel.qty > 0n) {
         const materials = rel.materials.reduce((sum, x) => sum + mul(outDelta.get(x.lineId) ?? 0n, x.qty), 0n);
         chain = div(materials + pctOf(materials, rel.pct), rel.qty);
-      } else if (m.lineId && outDelta.has(m.lineId)) chain = outDelta.get(m.lineId)!; // приход по цене расхода той же строки: перемещение, в том числе «в пути»
-      else if (m.type === 'customer_return' && m.lineId) chain = outDelta.get(sourceOf.get(m.lineId) ?? '') ?? 0n;
+      } else if (m.lineId && outDeltaByProduct.has(`${m.lineId}:${m.productId}`)) chain = outDeltaByProduct.get(`${m.lineId}:${m.productId}`)!;
+      else if (m.lineId && outDelta.has(m.lineId)) chain = outDelta.get(m.lineId)!; // приход по цене расхода той же строки: перемещение, в том числе «в пути»
+      else if (m.type === 'customer_return' && m.lineId) {
+        const srcLine = sourceOf.get(m.lineId);
+        chain = (srcLine ? (outDeltaByProduct.get(`${srcLine}:${m.productId}`) ?? outDelta.get(srcLine)) : undefined) ?? 0n;
+      }
       if (m.type === 'production' && m.lineId) chain += allocByLine.get(m.lineId) ?? 0n;
       delta = r4(own + chain);
       state.set(k, advance(s, qty, base + delta, m.lineId ? `${k}:${m.lineId}:${m.phase}` : undefined).state);
@@ -554,6 +569,31 @@ export async function sourceMoveCosts(db: Db, lineIds: string[]): Promise<Map<st
   return new Map(rows.filter(r => r.lineId).map(r => [r.lineId!, dec(r.cost)]));
 }
 
+/** Цена прихода по (строка источника, товар) — поддерживает комплекты, где у одной строки несколько составляющих */
+export async function sourceMoveProductCosts(db: Db, lineIds: string[]): Promise<Map<string, Dec>> {
+  if (!lineIds.length) return new Map();
+  const rows = await db
+    .select({ lineId: stockMoves.documentLineId, productId: stockMoves.productId, qty: stockMoves.qty, cost: effectiveCost })
+    .from(stockMoves)
+    .leftJoin(stockCostAdjustments, and(eq(stockCostAdjustments.workspaceId, stockMoves.workspaceId), eq(stockCostAdjustments.moveId, stockMoves.id)))
+    .where(inArray(stockMoves.documentLineId, lineIds));
+  const acc = new Map<string, { qty: Dec; sum: Dec }>();
+  for (const r of rows) {
+    if (!r.lineId) continue;
+    const q = dec(r.qty);
+    const absQ = q < 0n ? -q : q;
+    if (absQ <= 0n) continue;
+    const key = `${r.lineId}:${r.productId}`;
+    const cur = acc.get(key) ?? { qty: 0n, sum: 0n };
+    cur.qty += absQ;
+    cur.sum += absQ * dec(r.cost);
+    acc.set(key, cur);
+  }
+  const out = new Map<string, Dec>();
+  for (const [k, v] of acc) out.set(k, v.sum / v.qty);
+  return out;
+}
+
 /** Средняя себестоимость товаров «по организации»: средняя по складам, взвешенная остатком. Только товары с остатком и ненулевой ценой.
     Источник цены материала «средняя себестоимость склада» в расчёте производства */
 export async function loadAvgCosts(db: Db, productIds?: string[]): Promise<Map<string, string>> {
@@ -599,7 +639,7 @@ export async function syncReservations(db: Db, workspaceId: string, orderLineIds
   const ids = [...new Set(orderLineIds)];
   if (!ids.length) return;
   const lines = await db
-    .select({ id: documentLines.id, documentId: documentLines.documentId, qty: documentLines.qty, productId: documentLines.productId, status: documents.status, type: documents.type, warehouseId: documents.warehouseId, kind: products.kind })
+    .select({ id: documentLines.id, documentId: documentLines.documentId, qty: documentLines.qty, productId: documentLines.productId, status: documents.status, type: documents.type, warehouseId: documents.warehouseId, kind: products.kind, isKit: products.isKit })
     .from(documentLines)
     .innerJoin(documents, eq(documents.id, documentLines.documentId))
     .innerJoin(products, eq(products.id, documentLines.productId))
@@ -619,7 +659,7 @@ export async function syncReservations(db: Db, workspaceId: string, orderLineIds
   const leftForProduction = new Map<string, Dec>();
   for (const l of lines) {
     const reserves = DOCUMENT_META[l.type as DocumentType].reserves === true;
-    const open = reserves && l.status === 'posted' && l.kind === 'goods' ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
+    const open = reserves && l.status === 'posted' && l.kind === 'goods' && !l.isKit ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
     const want = l.warehouseId ? open : 0n;
     leftForProduction.set(l.id, open > 0n ? open : 0n);
     if (want > 0n) {
