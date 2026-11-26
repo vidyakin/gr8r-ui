@@ -2,8 +2,26 @@
    (заказ покупателя, реализация, заказ-наряд), статусы, назначение курьера, расход при «доставлена», «мои доставки», отчёт.
    Расчёт цены и себестоимости — чистая computeDeliveryCost из shared. */
 import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
-import { computeDeliveryCost, DELIVERY_COST_ITEM_KEY, DELIVERY_DOC_TYPES, deliveryWeight, dec, div, fmt, mul, type DeliveryRateInput, type DeliveryStatus, type DocumentLineInput, type Role } from '@erp/shared';
+import {
+  computeDeliveryCost,
+  DELIVERY_COST_ITEM_KEY,
+  DELIVERY_DOC_TYPES,
+  deliveryWeight,
+  dec,
+  div,
+  fmt,
+  isEmailAddress,
+  mul,
+  type DeliveryNotificationChannel,
+  type DeliveryNotificationEvent,
+  type DeliveryNotificationView,
+  type DeliveryRateInput,
+  type DeliveryStatus,
+  type DocumentLineInput,
+  type Role,
+} from '@erp/shared';
 import type { Db } from './client';
+import { enqueueDeliveryNotifications, listDeliveryNotifications, newTrackingToken } from './delivery-notify';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { assertPeriodOpen } from './cost-closing';
@@ -141,6 +159,8 @@ export interface DeliveryInput {
   address?: string;
   contactName?: string;
   contactPhone?: string;
+  contactEmail?: string;
+  trackingEnabled?: boolean;
   deliveryDate?: string | null;
   windowFrom?: string | null;
   windowTo?: string | null;
@@ -158,12 +178,12 @@ export interface DeliveryInput {
   recalcWeight?: boolean;
 }
 
-/** Контакт по умолчанию: адрес и телефон из контрагента (фактический адрес, иначе юридический; первый контакт) */
+/** Контакт по умолчанию: адрес, телефон и email из контрагента (фактический адрес, иначе юридический; первый контакт) */
 async function counterpartyDefaults(db: Db, counterpartyId: string | null) {
-  if (!counterpartyId) return { address: '', contactName: '', contactPhone: '' };
+  if (!counterpartyId) return { address: '', contactName: '', contactPhone: '', contactEmail: '' };
   const [c] = await db.select({ name: companies.name, actual: companies.actualAddress, legal: companies.legalAddress }).from(companies).where(eq(companies.id, counterpartyId)).limit(1);
-  const [ct] = await db.select({ name: contacts.name, phone: contacts.phone }).from(contacts).where(and(eq(contacts.companyId, counterpartyId), isNull(contacts.archivedAt))).orderBy(asc(contacts.createdAt)).limit(1);
-  return { address: c?.actual || c?.legal || '', contactName: ct?.name ?? c?.name ?? '', contactPhone: ct?.phone ?? '' };
+  const [ct] = await db.select({ name: contacts.name, phone: contacts.phone, email: contacts.email }).from(contacts).where(and(eq(contacts.companyId, counterpartyId), isNull(contacts.archivedAt))).orderBy(asc(contacts.createdAt)).limit(1);
+  return { address: c?.actual || c?.legal || '', contactName: ct?.name ?? c?.name ?? '', contactPhone: ct?.phone ?? '', contactEmail: ct?.email ?? '' };
 }
 
 async function assertAssignees(db: Db, input: DeliveryInput): Promise<void> {
@@ -203,6 +223,7 @@ export async function saveDelivery(db: Db, ctx: DocCtx, documentId: string, inpu
     address: input.address ?? base?.address ?? def?.address ?? '',
     contactName: input.contactName ?? base?.contactName ?? def?.contactName ?? '',
     contactPhone: input.contactPhone ?? base?.contactPhone ?? def?.contactPhone ?? '',
+    contactEmail: input.contactEmail !== undefined ? input.contactEmail : (base?.contactEmail ?? def?.contactEmail ?? ''),
     deliveryDate: input.deliveryDate !== undefined ? input.deliveryDate : (base?.deliveryDate ?? null),
     windowFrom: input.windowFrom !== undefined ? input.windowFrom : (base?.windowFrom ?? null),
     windowTo: input.windowTo !== undefined ? input.windowTo : (base?.windowTo ?? null),
@@ -212,6 +233,7 @@ export async function saveDelivery(db: Db, ctx: DocCtx, documentId: string, inpu
     carrierCompanyId: input.carrierCompanyId !== undefined ? input.carrierCompanyId : (base?.carrierCompanyId ?? null),
     comment: input.comment ?? base?.comment ?? '',
   };
+  if (v.contactEmail && !isEmailAddress(v.contactEmail)) throw new DomainError(422, 'delivery_email_invalid', 'Invalid contact email');
   if (v.windowFrom && v.windowTo && v.windowTo < v.windowFrom) throw new DomainError(422, 'delivery_window_invalid', 'The delivery window ends before it starts');
   // способ с перевозчиком подставляет его, если перевозчик не задан
   if (input.methodId && input.carrierCompanyId === undefined && !v.carrierCompanyId) {
@@ -239,16 +261,34 @@ export async function saveDelivery(db: Db, ctx: DocCtx, documentId: string, inpu
   if (manual && input.lat != null && input.lon != null) geo = { lat: input.lat.toFixed(6), lon: input.lon.toFixed(6), geoSource: 'manual', geoStatus: 'ok' };
   else if (manual || (addrChanged && base?.geoSource !== 'manual')) geo = { lat: null, lon: null, geoSource: null, geoStatus: null };
   const needGeocode = !!v.address.trim() && geo.geoSource !== 'manual' && (manual || addrChanged || (!base?.lat && !base?.geoStatus));
+  const wantTracking = input.trackingEnabled !== undefined ? input.trackingEnabled : (base?.trackingEnabled ?? false);
+  const trackingEnabledJustOn = wantTracking && !base?.trackingEnabled;
+  const trackingToken = base?.trackingToken ?? (wantTracking ? newTrackingToken() : null);
+  const trackingEnabledAt = wantTracking ? (base?.trackingEnabledAt ?? new Date()) : (base?.trackingEnabledAt ?? null);
+  const statusBecameAssigned = status === 'assigned' && (!base || base.status !== 'assigned');
+  const windowChanged =
+    !!base &&
+    (v.deliveryDate !== base.deliveryDate || v.windowFrom !== base.windowFrom || v.windowTo !== base.windowTo) &&
+    (v.deliveryDate !== null || v.windowFrom !== null || v.windowTo !== null);
+
   let row: DeliveryRow;
   if (base) {
-    [row] = await db.update(deliveries).set({ ...v, ...geo, price, ourCost, status, updatedAt: new Date() }).where(eq(deliveries.id, base.id)).returning() as [DeliveryRow];
+    [row] = await db.update(deliveries).set({ ...v, ...geo, price, ourCost, status, trackingEnabled: wantTracking, trackingToken, trackingEnabledAt, updatedAt: new Date() }).where(eq(deliveries.id, base.id)).returning() as [DeliveryRow];
   } else {
-    [row] = await db.insert(deliveries).values({ workspaceId: ctx.workspaceId, documentId, ...v, ...geo, price, ourCost, status }).returning() as [DeliveryRow];
+    [row] = await db.insert(deliveries).values({ workspaceId: ctx.workspaceId, documentId, ...v, ...geo, price, ourCost, status, trackingEnabled: wantTracking, trackingToken, trackingEnabledAt }).returning() as [DeliveryRow];
   }
   if (manual && geo.geoSource === 'manual') await syncStopCoords(db, row.id, row.lat, row.lon);
   if (needGeocode && row.geoSource !== 'manual') await requestGeocode(db, ctx.workspaceId, 'delivery', row.id);
   await syncExpense(db, ctx, row);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: base ? 'delivery.updated' : 'delivery.created', entity: 'delivery', recordId: row.id, actorId: ctx.memberId, payload: { documentId, changes: Object.keys(input) } });
+  if (trackingEnabledJustOn) {
+    await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'delivery.tracking_enabled', entity: 'delivery', recordId: row.id, actorId: ctx.memberId, payload: { documentId } });
+    await enqueueDeliveryNotifications(db, ctx, row, 'tracking_enabled');
+  } else if (statusBecameAssigned) {
+    await enqueueDeliveryNotifications(db, ctx, row, 'status_assigned');
+  } else if (windowChanged && (row.trackingEnabled || row.status === 'assigned' || row.status === 'in_transit')) {
+    await enqueueDeliveryNotifications(db, ctx, row, 'window_updated');
+  }
   return (await loadDelivery(db, row.id)) as DeliveryRow;
 }
 
@@ -339,6 +379,9 @@ export async function changeDeliveryStatus(db: Db, ctx: DocCtx, id: string, stat
   await syncExpense(db, ctx, row!);
   await syncStopFromDelivery(db, id, status);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'delivery.status_changed', entity: 'delivery', recordId: id, actorId: ctx.memberId, payload: { documentId: d.documentId, from: d.status, to: status } });
+  if (status !== d.status && (status === 'assigned' || status === 'in_transit' || status === 'delivered' || status === 'failed')) {
+    await enqueueDeliveryNotifications(db, ctx, row!, `status_${status}` as DeliveryNotificationEvent);
+  }
   return loadDelivery(db, id);
 }
 
@@ -349,9 +392,70 @@ export async function assignCourier(db: Db, ctx: DocCtx, id: string, courierMemb
   if (inTrip && courierMemberId !== d.courierMemberId) throw new DomainError(409, 'delivery_in_trip', `The courier of this delivery is set by trip ${inTrip.number}`, { tripId: inTrip.tripId });
   await assertAssignees(db, { courierMemberId });
   const status: DeliveryStatus = courierMemberId ? (d.status === 'new' ? 'assigned' : (d.status as DeliveryStatus)) : d.status === 'assigned' ? 'new' : (d.status as DeliveryStatus);
-  await db.update(deliveries).set({ courierMemberId, status, updatedAt: new Date() }).where(eq(deliveries.id, id));
+  const [updated] = await db.update(deliveries).set({ courierMemberId, status, updatedAt: new Date() }).where(eq(deliveries.id, id)).returning();
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'delivery.updated', entity: 'delivery', recordId: id, actorId: ctx.memberId, payload: { documentId: d.documentId, changes: ['courierMemberId'] } });
+  if (status === 'assigned' && d.status !== 'assigned') {
+    await enqueueDeliveryNotifications(db, ctx, updated!, 'status_assigned');
+  }
   return loadDelivery(db, id);
+}
+
+/** Включение/отключение или ротация публичной ссылки отслеживания доставки (задача 1217) */
+export async function updateDeliveryTracking(db: Db, ctx: DocCtx, id: string, input: { enabled?: boolean; rotate?: boolean }): Promise<DeliveryRow> {
+  const d = await loadDelivery(db, id, true);
+  const enabled = input.enabled !== undefined ? input.enabled : d.trackingEnabled;
+  const rotate = input.rotate === true;
+  const token = (enabled && !d.trackingToken) || rotate ? newTrackingToken() : d.trackingToken;
+  const enabledAt = enabled ? (d.trackingEnabledAt ?? new Date()) : d.trackingEnabledAt;
+  const [updated] = await db
+    .update(deliveries)
+    .set({ trackingEnabled: enabled, trackingToken: token, trackingEnabledAt: enabledAt, updatedAt: new Date() })
+    .where(eq(deliveries.id, id))
+    .returning();
+  await recordEvent(db, {
+    workspaceId: ctx.workspaceId,
+    type: !d.trackingEnabled && enabled ? 'delivery.tracking_enabled' : 'delivery.updated',
+    entity: 'delivery',
+    recordId: id,
+    actorId: ctx.memberId,
+    payload: { documentId: d.documentId, changes: ['tracking'] },
+  });
+  if ((!d.trackingEnabled && enabled) || (enabled && rotate)) {
+    await enqueueDeliveryNotifications(db, ctx, updated!, 'tracking_enabled');
+  }
+  return loadDelivery(db, id);
+}
+
+/** Журнал уведомлений по доставке (с учётом ограничения курьера) */
+export async function deliveryNotificationsOf(db: Db, ctx: DocCtx, id: string): Promise<DeliveryNotificationView[]> {
+  const d = await loadDelivery(db, id);
+  const scope = await courierScope(db, ctx);
+  if (scope && d.courierMemberId !== scope) throw new DomainError(404, 'not_found', 'delivery not found');
+  return listDeliveryNotifications(db, id);
+}
+
+/** Ручная отправка / повтор уведомления клиенту */
+export async function sendDeliveryManualNotification(
+  db: Db,
+  ctx: DocCtx,
+  id: string,
+  input: { channel?: DeliveryNotificationChannel; eventKind?: DeliveryNotificationEvent },
+): Promise<DeliveryNotificationView[]> {
+  const d = await loadDelivery(db, id);
+  const fallbackEvent: DeliveryNotificationEvent =
+    d.status === 'delivered'
+      ? 'status_delivered'
+      : d.status === 'in_transit'
+        ? 'status_in_transit'
+        : d.status === 'assigned'
+          ? 'status_assigned'
+          : d.status === 'failed'
+            ? 'status_failed'
+            : 'tracking_enabled';
+  return enqueueDeliveryNotifications(db, ctx, d, input.eventKind ?? fallbackEvent, {
+    channels: input.channel ? [input.channel] : undefined,
+    strictRecipient: !!input.channel,
+  });
 }
 
 /* ---------------- строка-услуга в документе ---------------- */

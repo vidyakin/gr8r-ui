@@ -99,6 +99,8 @@ export const errors: Widen<typeof E> = {
   courier_inactive: 'El repartidor está desactivado',
   delivery_method_required: 'Selecciona primero un método de entrega',
   delivery_product_required: 'El método de entrega no tiene un servicio para la línea del documento',
+  delivery_email_invalid: 'Introduce un correo electrónico válido para las notificaciones de entrega',
+  delivery_notify_no_recipient: 'Indica el teléfono o correo del destinatario antes de enviar la notificación',
   period_out_of_range: 'Una línea del plan está fuera del horizonte del proyecto',
   invalid_rate: 'La tasa de descuento no puede ser negativa',
   waste_exceeds_cost: 'Los residuos recuperables cuestan más que toda la producción',

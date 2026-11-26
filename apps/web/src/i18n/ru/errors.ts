@@ -98,6 +98,8 @@ export const errors: Widen<typeof E> = {
   courier_inactive: 'Курьер отключён',
   delivery_method_required: 'Сначала выберите способ доставки',
   delivery_product_required: 'У способа доставки не задана услуга для строки документа',
+  delivery_email_invalid: 'Укажите корректный email для уведомлений о доставке',
+  delivery_notify_no_recipient: 'Укажите телефон или email получателя перед отправкой уведомления',
   period_out_of_range: 'Строка плана выходит за горизонт проекта',
   invalid_rate: 'Ставка дисконтирования не может быть отрицательной',
   // брак и возвратные отходы (задача 1136)

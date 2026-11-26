@@ -18,6 +18,7 @@ import { useWsId } from '../meta/data';
 import { downloadTransportWaybillPdf, openTransportWaybill } from '../trips/data';
 import { useCanSeeCost, useDocsApi, typeLabel, type DocDetail } from './data';
 import { useDeliveryMethods, useDocumentDelivery, type DeliveryItem } from './delivery-data';
+import { DeliveryTrackingPanel } from './DeliveryTrackingPanel';
 
 export const DELIVERY_TONE: Record<DeliveryStatus, Tone> = { new: 'neutral', assigned: 'accent', in_transit: 'amber', delivered: 'green', failed: 'red' };
 const NONE = 'none';
@@ -27,6 +28,7 @@ interface Form {
   address: string;
   contactName: string;
   contactPhone: string;
+  contactEmail: string;
   deliveryDate: string;
   windowFrom: string;
   windowTo: string;
@@ -47,6 +49,7 @@ const fromItem = (d: DeliveryItem): Form => ({
   address: d.address,
   contactName: d.contactName,
   contactPhone: d.contactPhone,
+  contactEmail: d.contactEmail ?? '',
   deliveryDate: d.deliveryDate ?? '',
   windowFrom: d.windowFrom?.slice(0, 5) ?? '',
   windowTo: d.windowTo?.slice(0, 5) ?? '',
@@ -119,6 +122,7 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
       address: form.address,
       contactName: form.contactName,
       contactPhone: form.contactPhone,
+      contactEmail: form.contactEmail,
       deliveryDate: form.deliveryDate || null,
       windowFrom: form.windowFrom || null,
       windowTo: form.windowTo || null,
@@ -177,6 +181,7 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
         <Field label={t('delivery.tab.lon')}>{p => <Input {...p} inputMode="decimal" disabled={dis} value={form.lon} onChange={e => set({ lon: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.contact')}>{p => <Input {...p} disabled={dis} value={form.contactName} onChange={e => set({ contactName: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.phone')}>{p => <Input {...p} type="tel" disabled={dis} value={form.contactPhone} onChange={e => set({ contactPhone: e.target.value })} />}</Field>
+        <Field label={t('delivery.tab.email')}>{p => <Input {...p} type="email" disabled={dis} value={form.contactEmail} onChange={e => set({ contactEmail: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.distance')}>{p => <Input {...p} inputMode="decimal" disabled={dis} value={form.distanceKm} onChange={e => set({ distanceKm: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.weight')}>
           {p => (
@@ -234,6 +239,7 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
         </div>
       )}
       <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>{t('delivery.tab.lineHint')}</p>
+      <DeliveryTrackingPanel item={item} canWrite={canWrite} />
       <ConfirmDialog
         open={confirmDel}
         onOpenChange={setConfirmDel}
