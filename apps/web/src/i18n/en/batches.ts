@@ -47,4 +47,15 @@ export const batches = {
     enterIndicator: 'Enter an indicator',
     statusLabel: 'Quality status of the batch',
   },
+  trace: {
+    button: 'Traceability',
+    title: 'Batch traceability',
+    backward: 'Where from',
+    forward: 'Where used',
+    backwardHint: 'Materials, releases and receipts up to the supplier',
+    forwardHint: 'Releases, transfers, shipments and customer orders',
+    empty: 'No linked batches',
+    loadError: 'Could not load the trace',
+    kind: { batch: 'Batch', document: 'Document', movement: 'Shipment', order: 'Order', supplier: 'Supplier', processing: 'Processing' },
+  },
 };

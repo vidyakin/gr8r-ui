@@ -48,6 +48,7 @@
 - [Параметрические спецификации, варианты и калькуляция заказа](architecture/production-parametric.md)
 - [Заказы на производство и выпуск](architecture/production-orders.md)
 - [Обеспечение материалов заказа на производство](architecture/production-materials.md)
+- [Прослеживаемость партий](architecture/production-traceability.md)
 - [Рабочее место «Выпуск продукции»](architecture/production-workplace.md)
 - [Виды производства и этапы](architecture/production-stages.md)
 - [Переработка](architecture/production-processing.md)

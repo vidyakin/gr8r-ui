@@ -23,6 +23,7 @@ export * from './i18n';
 export * from './investments';
 export * from './service-reports';
 export * from './serials';
+export * from './traceability';
 export * from './sales-plan';
 export * from './appointments';
 export * from './delivery';

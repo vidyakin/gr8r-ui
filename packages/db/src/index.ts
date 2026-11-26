@@ -54,6 +54,7 @@ export * from './production-reports';
 export * from './service-reports';
 export * from './serials';
 export * from './batches';
+export * from './traceability';
 export * from './stock-preview';
 export * from './stock-aging';
 export * from './sales-profit';

@@ -427,3 +427,58 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Прослеживаемость партий (задача 1253): дерево «из чего / куда ушло» */
+.trace-tree {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 60vh;
+  background: var(--surface);
+}
+.trace-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.trace-node:first-child {
+  border-top: none;
+}
+.trace-node.clickable {
+  cursor: pointer;
+}
+.trace-node.clickable:hover {
+  background: var(--hover);
+}
+.trace-kind {
+  display: inline-flex;
+  color: var(--muted);
+  flex: none;
+}
+.trace-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.trace-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trace-sub {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trace-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}

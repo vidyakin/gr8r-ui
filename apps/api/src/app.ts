@@ -47,6 +47,7 @@ import { salesPlanRoutes } from './routes/sales-plan';
 import { appointmentRoutes } from './routes/appointments';
 import { repairItemRoutes, serialRoutes } from './routes/serials';
 import { batchQualityRoutes, defectReasonRoutes, reworkRoutes } from './routes/quality';
+import { traceabilityRoutes } from './routes/traceability';
 import { deliveryMethodRoutes, deliveryRoutes } from './routes/delivery';
 import { fleetRoutes } from './routes/fleet';
 import { weighingRoutes } from './routes/weighings';
@@ -264,6 +265,7 @@ function buildTenantApi() {
     .route('/billing', billingRoutes)
     .route('/stock', stockRoutes)
     .route('/stock', batchQualityRoutes)
+    .route('/stock', traceabilityRoutes)
     .route('/flows', flowRoutes)
     .route('/flow-runs', flowRunRoutes)
     .route('/supplier-ratings', supplierRatingRoutes)

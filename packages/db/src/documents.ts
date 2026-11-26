@@ -63,6 +63,7 @@ import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 import { productUnitsOf } from './product-units';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
+import { recordStockBatchLinks, removeStockBatchLinks } from './traceability';
 import { applySaleNextContact } from './repeat-sales';
 import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, applyLoyaltyReturnRefund, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
 import { inheritDelivery } from './delivery';
@@ -1135,6 +1136,12 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<str
     await applyDocumentMoves(db, ctx, doc, lines);
   }
 
+  // прослеживаемость партий (задача 1253): связи «сырьё → продукция», «склад-источник → получатель»
+  // и давальческое сырьё. Пишутся после движений склада, отмена проведения их удаляет.
+  if (type === 'production' || type === 'stock_transfer' || type === 'tolling_receipt' || type === 'tolling_report' || type === 'tolling_return') {
+    await recordStockBatchLinks(db, ctx.workspaceId, id);
+  }
+
   // лояльность (задача 1179): списание баллов уменьшает суммы строк до начисления взаиморасчётов
   if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type) && (await applyLoyaltyRedemption(db, ctx, doc))) await writeTotals(db, id);
   if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId && (await applyLoyaltyReturnRefund(db, ctx, doc, doc.basedOnId))) await writeTotals(db, id);
@@ -1281,6 +1288,8 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   if (!opts.repost) await DOCUMENT_HOOKS[type]?.beforeUnpost?.(db, ctx, doc);
   // отмена проведения возвращает движения склада (у внутренних документов — обе стороны перемещения)
   await revertStockMoves(db, ctx.workspaceId, id, await loadInventorySettings(db, ctx.workspaceId));
+  // прослеживаемость партий (задача 1253): связи документа больше не действительны
+  await removeStockBatchLinks(db, ctx.workspaceId, id);
   await db.delete(documentLineKitItems).where(and(eq(documentLineKitItems.workspaceId, ctx.workspaceId), eq(documentLineKitItems.documentId, id)));
   await db.update(documents).set({ status: 'draft', postedAt: null, postedBy: null, updatedAt: new Date() }).where(eq(documents.id, id));
   await syncAfterChange(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id), false);
