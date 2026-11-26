@@ -127,7 +127,7 @@ export function CatalogPage() {
               {p.parentProductId && <span className="faint" aria-hidden="true">↳ </span>}
               {p.name}
             </span>
-            {p.isKit && <Badge tone="blue">{t('catalog.kitBadge')}</Badge>}
+            {p.isKit && <Badge tone="accent">{t('catalog.kitBadge')}</Badge>}
             {p.parentProductId && <Badge tone="gray">{t('catalog.variant')}</Badge>}
             {!p.isActive && <Badge tone="gray">{t('common.inactive')}</Badge>}
           </span>

@@ -162,7 +162,7 @@ export function ProductKitSection({ product: p }: { product: Product }) {
                     <td>
                       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                         <span>{r.componentName}</span>
-                        {r.componentIsKit && <Badge tone="blue">{t('catalog.kitBadge')}</Badge>}
+                        {r.componentIsKit && <Badge tone="accent">{t('catalog.kitBadge')}</Badge>}
                       </div>
                       <div className="faint" style={{ fontSize: 11 }}>
                         {r.componentSku ? <span className="mono">{r.componentSku} · </span> : null}

@@ -143,7 +143,7 @@ export function CatalogPickDialog(props: CatalogPickDialogProps) {
                         <Package size={13} className="faint" />
                       )}
                       <span className="trunc grow" style={{ minWidth: 0 }}>{h.product.name}</span>
-                      {h.product.isKit && <Badge tone="blue">{t('catalog.kitBadge')}</Badge>}
+                      {h.product.isKit && <Badge tone="accent">{t('catalog.kitBadge')}</Badge>}
                       {arts?.get(h.product.id)?.article && (
                         <span className="mono accent" style={{ fontSize: 11 }} title={arts.get(h.product.id)?.name || undefined}>
                           {t('docs.partner.lineArticle', { article: arts.get(h.product.id)!.article })}

@@ -737,7 +737,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                         {/* артикул — мелко над названием: вся ширина ячейки остаётся названию */}
                         {(srv?.sku || l.isKit || srv?.isKit) && (
                           <div className="row" style={{ gap: 6, marginBottom: 2 }}>
-                            {(l.isKit || srv?.isKit) && <Badge tone="blue">{t('docs.document.kitBadge')}</Badge>}
+                            {(l.isKit || srv?.isKit) && <Badge tone="accent">{t('docs.document.kitBadge')}</Badge>}
                             {srv?.sku && <span className="mono faint line-sku">{srv.sku}</span>}
                           </div>
                         )}

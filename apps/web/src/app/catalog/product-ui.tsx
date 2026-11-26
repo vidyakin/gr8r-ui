@@ -301,7 +301,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           <span className="row" style={{ gap: 6, fontSize: 12.5 }}>
             <KindIcon size={14} />
             {kindLabel(p.kind)}
-            {p.isKit && <Badge tone="blue">{t('catalog.kitBadge')}</Badge>}
+            {p.isKit && <Badge tone="accent">{t('catalog.kitBadge')}</Badge>}
             {p.sku && <span className="mono faint">{p.sku}</span>}
           </span>
         }
