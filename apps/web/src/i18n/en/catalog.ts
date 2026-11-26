@@ -19,6 +19,7 @@ export const catalog = {
   notFoundTitle: 'Product not found',
   notFoundText: 'This product does not exist or was archived.',
   variant: 'Variant',
+  kitBadge: 'Kit',
   col: {
     name: 'Name',
     sku: 'SKU',
@@ -129,6 +130,7 @@ export const catalog = {
     defaultSupplier: 'Default supplier',
     noSupplier: 'No supplier',
     active: 'Active',
+    isKit: 'Kit (bundle)',
     normHours: 'Norm hours',
     workCenter: 'Work center',
     noWorkCenter: 'No work center',
@@ -179,6 +181,27 @@ export const catalog = {
     equals: '1 {unit} = {factor} {base}',
     saved: 'Packages saved',
     invalidFactor: 'The factor must be a number greater than zero',
+  },
+  /** Комплект (набор) */
+  kits: {
+    title: 'Kit components',
+    hint: 'A kit has no stock of its own: on sale or shipment, components are deducted from stock automatically. Revenue is distributed by explicit shares, or by catalog prices, or by quantity.',
+    component: 'Component',
+    qty: 'Qty per kit',
+    share: 'Price share',
+    sharePlaceholder: 'Auto',
+    preview: 'Share preview',
+    add: 'Add component',
+    pickTitle: 'Add kit component',
+    remove: 'Remove {name}',
+    save: 'Save components',
+    saved: 'Kit components saved',
+    none: 'No components yet. Add goods that belong to this kit.',
+    invalidQty: 'Quantity must be greater than zero',
+    invalidShare: 'Price share cannot be negative',
+    duplicate: 'This component is already in the kit',
+    catalogSum: 'Components catalog total: {sum}',
+    costEstimate: 'Estimated purchase cost: {sum}',
   },
 };
 

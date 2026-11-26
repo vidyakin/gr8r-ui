@@ -601,6 +601,12 @@ export const docs: Widen<typeof D> = {
     groupPurchases: 'Compras',
     groupProduction: 'Órdenes de producción',
     groupStock: 'Documentos de almacén',
+    kitBadge: 'Kit',
+    kitComponents: 'Componentes del kit ({n})',
+    kitColComponent: 'Componente',
+    kitColQty: 'Cant.',
+    kitColAmount: 'Importe',
+    kitColCogs: 'Coste',
   },
 
   /* ----------- ficha del documento: sección tabular ----------- */

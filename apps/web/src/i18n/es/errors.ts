@@ -532,4 +532,12 @@ export const errors: Widen<typeof E> = {
   invalid_url: 'Introduce una URL pública válida (http o https)',
   invalid_direct_chat: 'Chat directo no válido: elige exactamente un miembro más',
   invalid_member: 'Miembro del chat no válido',
+  kit_goods_only: 'Solo los productos de tipo mercancía pueden configurarse como kits',
+  kit_no_tracking: 'Los kits no pueden usar seguimiento por serie o lote',
+  kit_duplicate_component: 'Cada componente solo puede añadirse una vez al kit',
+  kit_cycle: 'Un kit no puede incluirse a sí mismo directamente ni mediante otros kits',
+  kit_empty: 'El kit no tiene componentes configurados',
+  kit_invalid_share: 'La cuota de precio no puede ser negativa',
+  kit_component_goods_only: 'Solo las mercancías pueden ser componentes de un kit',
+  kit_not_stockable: 'Los kits no tienen stock propio y solo pueden venderse o devolverse',
 };

@@ -33,6 +33,7 @@ export const catalog: Widen<typeof C> = {
   notFoundTitle: 'Producto no encontrado',
   notFoundText: 'Este producto no existe o fue archivado.',
   variant: 'Variante',
+  kitBadge: 'Kit',
   col: {
     name: 'Nombre',
     sku: 'SKU',
@@ -143,6 +144,7 @@ export const catalog: Widen<typeof C> = {
     defaultSupplier: 'Proveedor predeterminado',
     noSupplier: 'Sin proveedor',
     active: 'Activo',
+    isKit: 'Kit (lote)',
     normHours: 'Horas estándar',
     workCenter: 'Centro de trabajo',
     noWorkCenter: 'Sin centro de trabajo',
@@ -193,6 +195,27 @@ export const catalog: Widen<typeof C> = {
     equals: '1 {unit} = {factor} {base}',
     saved: 'Envases guardados',
     invalidFactor: 'El factor debe ser un número mayor que cero',
+  },
+  /** Kit (lote) */
+  kits: {
+    title: 'Componentes del kit',
+    hint: 'Un kit no tiene stock propio: al vender o enviar, los componentes se descuentan automáticamente. El precio se distribuye por cuotas explícitas, o por precios del catálogo o por cantidad.',
+    component: 'Componente',
+    qty: 'Cant. por kit',
+    share: 'Cuota de precio',
+    sharePlaceholder: 'Auto',
+    preview: 'Vista previa',
+    add: 'Añadir componente',
+    pickTitle: 'Añadir componente al kit',
+    remove: 'Quitar {name}',
+    save: 'Guardar componentes',
+    saved: 'Componentes del kit guardados',
+    none: 'Aún no hay componentes. Añada los productos que forman este kit.',
+    invalidQty: 'La cantidad debe ser mayor que cero',
+    invalidShare: 'La cuota de precio no puede ser negativa',
+    duplicate: 'Este componente ya está en el kit',
+    catalogSum: 'Suma de catálogo de componentes: {sum}',
+    costEstimate: 'Coste de compra estimado: {sum}',
   },
 };
 

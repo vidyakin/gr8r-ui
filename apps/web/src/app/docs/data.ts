@@ -33,6 +33,25 @@ export const STATUS_TONE: Record<DocumentStatus, Tone> = { draft: 'gray', posted
 export const typeLabel = (type: string) => (hasKey(`docs.types.${type}`) ? t(`docs.types.${type}` as TKey) : (DOCUMENT_META[type as DocumentType]?.label ?? type));
 export const docTitle = (d: { type: string; number: string | null }) => `${typeLabel(d.type)}${d.number ? ` ${d.number}` : ` ${t('docs.draftSuffix')}`}`;
 
+export interface DocLineKitItem {
+  id?: string;
+  componentProductId: string;
+  componentName: string;
+  componentSku: string;
+  componentUnitCode: string;
+  qtyPerKit: string;
+  qty: string;
+  priceShare: string | null;
+  weightSharePct?: string;
+  unitPrice: string;
+  net: string;
+  vatAmount: string;
+  total: string;
+  unitCost: string | null;
+  cogs: string | null;
+  sortOrder: number;
+}
+
 export interface DocLine {
   id: string;
   productId: string;
@@ -51,6 +70,10 @@ export interface DocLine {
   total: string;
   sku: string;
   kind: 'goods' | 'service' | 'work' | 'operation';
+  /** Товар является комплектом (набором) */
+  isKit?: boolean;
+  /** Составляющие комплекта и распределение суммы/себестоимости */
+  kitItems?: DocLineKitItem[];
   /** Товар с учётом по серийным номерам */
   trackSerials?: boolean;
   /** Товар с партионным учётом (задача 1187) */

@@ -4,8 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { generateProductBarcodes, assertProductKind, listProductUnits, saveProductUnits, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7, workspaceVatDefaults } from '@erp/db';
-import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUnitsBody, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@erp/shared';
+import { generateProductBarcodes, assertProductKind, listProductKitItems, listProductUnits, saveProductKitItems, saveProductUnits, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7, workspaceVatDefaults } from '@erp/db';
+import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productKitItemsBody, productQuery, productUnitsBody, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx, escapeLike } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
@@ -218,6 +218,8 @@ export const productRoutes = crud({
   prepareCreate: async (ctx, body) => {
     await assertUnit(ctx, body.unitCode);
     await assertProductKind(ctx.db, body.kind, body.productKindId);
+    if (body.isKit && body.kind !== 'goods') throw new AppError(422, 'kit_goods_only', 'Only goods products can be configured as kits');
+    if (body.isKit && (body.trackSerials || body.trackBatches)) throw new AppError(422, 'kit_no_tracking', 'Kit products cannot use serial or batch tracking');
     if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
     if (body.parentProductId) await assertVariantParent(ctx, body.parentProductId);
     const cat = body.categoryId ? await loadCategory(ctx, body.categoryId) : null;
@@ -225,6 +227,10 @@ export const productRoutes = crud({
     return { attrs, vatRate: await catalogVatRate(ctx, body.vatRate), ...(await customForCreate(ctx, 'product', body.custom)) };
   },
   prepareUpdate: async (ctx, existing, body) => {
+    const nextKind = body.kind ?? existing.kind;
+    const nextIsKit = body.isKit !== undefined ? body.isKit : existing.isKit;
+    if (nextIsKit && nextKind !== 'goods') throw new AppError(422, 'kit_goods_only', 'Only goods products can be configured as kits');
+    if (nextIsKit && (body.trackSerials === true || body.trackBatches === true)) throw new AppError(422, 'kit_no_tracking', 'Kit products cannot use serial or batch tracking');
     if (body.vatRate !== undefined && body.vatRate !== existing.vatRate) await catalogVatRate(ctx, body.vatRate);
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
     if (body.kind !== undefined || body.productKindId !== undefined) await assertProductKind(ctx.db, body.kind ?? existing.kind, body.productKindId !== undefined ? body.productKindId : existing.productKindId);
@@ -232,7 +238,10 @@ export const productRoutes = crud({
     if (body.parentProductId !== undefined && body.parentProductId && body.parentProductId !== existing.parentProductId) await assertVariantParent(ctx, body.parentProductId);
     // основная картинка — вложение этого же товара (задача 1192)
     if (body.imageAttachmentId !== undefined && body.imageAttachmentId !== null) await assertProductImage(ctx, existing.id, body.imageAttachmentId);
-    const out: Record<string, unknown> = { ...(await customForUpdate(ctx, 'product', existing.custom, body.custom, existing.id)) };
+    const out: Record<string, unknown> = {
+      ...(await customForUpdate(ctx, 'product', existing.custom, body.custom, existing.id)),
+      ...(nextIsKit && !existing.isKit ? { trackSerials: false, trackBatches: false } : {}),
+    };
     const categoryChanged = body.categoryId !== undefined && (body.categoryId ?? null) !== existing.categoryId;
     if (categoryChanged || body.attrs !== undefined) {
       const catId = categoryChanged ? (body.categoryId ?? null) : existing.categoryId;
@@ -311,6 +320,19 @@ export const variantRoutes = new Hono<AppEnv>()
   .put('/:id/units', requireRole('member'), zValidator('param', idParam, validationHook), zValidator('json', productUnitsBody, validationHook), async c => {
     const ctx = ctxOf(c);
     const items = await saveProductUnits(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, c.req.valid('param').id, c.req.valid('json').items);
+    return c.json({ items });
+  })
+  // состав комплекта (набора как в УНФ, задача #1183)
+  .get('/:id/kit-items', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [p] = await ctx.db.select({ id: products.id, isKit: products.isKit }).from(products).where(eq(products.id, id)).limit(1);
+    if (!p) throw notFound('product');
+    return c.json({ isKit: p.isKit, items: await listProductKitItems(ctx.db, ctx.workspaceId, id) });
+  })
+  .put('/:id/kit-items', requireRole('member'), zValidator('param', idParam, validationHook), zValidator('json', productKitItemsBody, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const items = await saveProductKitItems(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, c.req.valid('param').id, c.req.valid('json').items);
     return c.json({ items });
   })
   // «создать все комбинации»: по select-параметрам с флажком «разрез склада»

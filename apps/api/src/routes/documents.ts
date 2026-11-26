@@ -66,6 +66,7 @@ import {
   inUseBalances,
   members,
   lineSerialsView,
+  maskDocumentKitCosts,
   saveSerials,
   activateVariant,
   batchBalances,
@@ -458,6 +459,13 @@ const SORTABLE = {
 /** Внутренний документ: без контрагента, направление движения задаёт роль строки */
 const isInternal = (t: string) => DOCUMENT_META[t as DocumentType]?.party === null;
 
+/** Карточка документа с учётом скрытых полей и видимости себестоимости составляющих комплекта */
+async function respondDoc(ctx: Ctx, id: string, extra?: Record<string, unknown>) {
+  const hidden = await hiddenFieldsOf(ctx);
+  const detail = maskDocumentKitCosts(await documentDetail(ctx.db, id), canSeeCost(ctx.role), !hidden.includes('document.total'));
+  return maskFields('document', extra ? { ...detail, ...extra } : detail, hidden);
+}
+
 /** Тип документа по id: нужен там, где поведение документа зависит от его типа */
 async function documentTypeOf(ctx: Ctx, id: string): Promise<string> {
   const [doc] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
@@ -557,11 +565,12 @@ export const documentRoutes = new Hono<AppEnv>()
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     await payrollGuard(c, ctx, c.req.valid('param').id);
-    const detail = await documentDetail(ctx.db, c.req.valid('param').id);
+    const hidden = await hiddenFieldsOf(ctx);
+    const detail = maskDocumentKitCosts(await documentDetail(ctx.db, c.req.valid('param').id), canSeeCost(ctx.role), !hidden.includes('document.total'));
     // заказ-наряд: добавляем вид, состояния, материалы и назначения
     if (detail.type === 'work_order') {
       const wo = await workOrderDetail(ctx.db, detail.id);
-      return c.json(maskFields('document', { ...detail, ...wo }, await hiddenFieldsOf(ctx)));
+      return c.json(maskFields('document', { ...detail, ...wo }, hidden));
     }
     // производственный документ: добавляем изготовителя, позиции и состав
     if (detail.type === 'production' || detail.type === 'production_order') {
@@ -579,19 +588,19 @@ export const documentRoutes = new Hono<AppEnv>()
         items: prod.items,
         components: prod.components,
         outputs: prod.outputs,
-      }, await hiddenFieldsOf(ctx)));
+      }, hidden));
     }
     // цена оприходования и стоимость по себестоимости — member и guest их не видят
-    if (isInternal(detail.type) && !canSeeCost(ctx.role)) return c.json(maskFields('document', { ...detail, lines: detail.lines.map(l => ({ ...l, price: '0.00' })), costTotal: null }, await hiddenFieldsOf(ctx)));
+    if (isInternal(detail.type) && !canSeeCost(ctx.role)) return c.json(maskFields('document', { ...detail, lines: detail.lines.map(l => ({ ...l, price: '0.00' })), costTotal: null }, hidden));
     // себестоимость услуги переработки: у заказа на переработку — накопленная по заказу, у отчёта о переработке и акта
     // по нему — себестоимость партии; видят admin и owner
     const processingOrder = detail.type === 'customer_order' && detail.operation === 'processing';
     const processingDoc = detail.type === 'tolling_report' || (detail.type === 'act' && detail.basedOn?.type === 'tolling_report');
     if (processingOrder || processingDoc) {
       const serviceCost = canSeeCost(ctx.role) ? (processingOrder ? await processingOrderCost(ctx.db, detail.id) : await documentServiceCost(ctx.db, detail.id)) : null;
-      return c.json(maskFields('document', { ...detail, serviceCost }, await hiddenFieldsOf(ctx)));
+      return c.json(maskFields('document', { ...detail, serviceCost }, hidden));
     }
-    return c.json(maskFields('document', detail, await hiddenFieldsOf(ctx)));
+    return c.json(maskFields('document', detail, hidden));
   })
   .post('/', write, zValidator('json', documentCreate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -601,10 +610,11 @@ export const documentRoutes = new Hono<AppEnv>()
     // производственные документы и прочие затраты создаются своим сервисом: у них позиции и состав, а не строки товаров
     if (body.type === 'production' || body.type === 'production_order' || body.type === 'other_costs' || body.type === 'material_allocation' || body.type === 'sales_plan' || body.type === 'service_day' || body.type === 'price_setting' || isCashDocType(body.type)) throw new AppError(422, 'production_api_only', 'This document type is created in its own section of Production');
     const id = await createDocument(ctx.db, docCtx(ctx), body);
-    const detail = await documentDetail(ctx.db, id);
+    const hidden = await hiddenFieldsOf(ctx);
+    const detail = maskDocumentKitCosts(await documentDetail(ctx.db, id), canSeeCost(ctx.role), !hidden.includes('document.total'));
     // заказ-наряд: карточка сразу с видом, состояниями, материалами и назначениями
-    if (detail.type === 'work_order') return c.json(maskFields('document', { ...detail, ...(await workOrderDetail(ctx.db, id)) }, await hiddenFieldsOf(ctx)), 201);
-    return c.json(maskFields('document', detail, await hiddenFieldsOf(ctx)), 201);
+    if (detail.type === 'work_order') return c.json(maskFields('document', { ...detail, ...(await workOrderDetail(ctx.db, id)) }, hidden), 201);
+    return c.json(maskFields('document', detail, hidden), 201);
   })
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', documentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -614,7 +624,7 @@ export const documentRoutes = new Hono<AppEnv>()
     if (isCashDocType(patchedType)) throw new AppError(422, 'payments_api_only', 'Payment documents are edited through /payments');
     requireVisibleFields(assertNoHiddenFieldWrite('document', await c.req.json(), await hiddenFieldsOf(ctx)));
     await updateDocument(ctx.db, docCtx(ctx), id, c.req.valid('json'));
-    return c.json(maskFields('document', await documentDetail(ctx.db, id), await hiddenFieldsOf(ctx)));
+    return c.json(await respondDoc(ctx, id));
   })
   .delete('/:id', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -632,7 +642,7 @@ export const documentRoutes = new Hono<AppEnv>()
     // обязательный маршрут согласования (задача 1199); заявка на расход подаётся на согласование самим проведением (хук afterPost)
     if ((await documentTypeOf(ctx, id)) !== 'payment_request') await assertApproved(ctx.db, { kind: 'document', id });
     const warnings = await postDocument(ctx.db, docCtx(ctx), id);
-    return c.json(maskFields('document', { ...(await documentDetail(ctx.db, id)), warnings }, await hiddenFieldsOf(ctx)));
+    return c.json(await respondDoc(ctx, id, { warnings }));
   })
   // движения склада документа: проведённого — фактические, черновика — какие сделает проведение (проведение в savepoint с откатом, данные не меняются)
   .get('/:id/stock-moves', zValidator('param', idParam, validationHook), async c => {
@@ -663,7 +673,7 @@ export const documentRoutes = new Hono<AppEnv>()
     assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
     await payrollGuard(c, ctx, id);
     await unpostDocument(ctx.db, docCtx(ctx), id);
-    return c.json(maskFields('document', await documentDetail(ctx.db, id), await hiddenFieldsOf(ctx)));
+    return c.json(await respondDoc(ctx, id));
   })
   .post('/:id/cancel', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -674,14 +684,14 @@ export const documentRoutes = new Hono<AppEnv>()
     if (!parsed.success) throw new AppError(422, 'validation_error', 'Invalid cancellation reason');
     await payrollGuard(c, ctx, id);
     await cancelDocument(ctx.db, docCtx(ctx), id, parsed.data.reason);
-    return c.json(maskFields('document', await documentDetail(ctx.db, id), await hiddenFieldsOf(ctx)));
+    return c.json(await respondDoc(ctx, id));
   })
   .post('/:id/restore', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     await payrollGuard(c, ctx, id);
     await restoreDocument(ctx.db, docCtx(ctx), id);
-    return c.json(maskFields('document', await documentDetail(ctx.db, id), await hiddenFieldsOf(ctx)));
+    return c.json(await respondDoc(ctx, id));
   })
   .post('/:id/based-on', write, zValidator('param', idParam, validationHook), zValidator('json', basedOnCreate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -693,22 +703,22 @@ export const documentRoutes = new Hono<AppEnv>()
       // брак выпуска списывается своей кнопкой: черновик со строками брака «на расходы»
       if (type === 'write_off' && src?.type === 'production') {
         const { id: created } = await writeOffDefects(ctx.db, docCtx(ctx), id);
-        return c.json(maskFields('document', await documentDetail(ctx.db, created), await hiddenFieldsOf(ctx)), 201);
+        return c.json(await respondDoc(ctx, created), 201);
       }
       if (src?.type === 'inventory_count') {
         const created = await createInventoryBasedOn(ctx.db, docCtx(ctx), id, type);
-        return c.json(maskFields('document', await documentDetail(ctx.db, created), await hiddenFieldsOf(ctx)), 201);
+        return c.json(await respondDoc(ctx, created), 201);
       }
     }
     // прочие затраты на основании заказ-наряда: черновик с заказ-нарядом в шапке (прямые затраты заказ-наряда)
     if (type === 'other_costs') {
       const created = await createOtherCostsFromWorkOrder(ctx.db, docCtx(ctx), id);
-      return c.json(maskFields('document', await documentDetail(ctx.db, created), await hiddenFieldsOf(ctx)), 201);
+      return c.json(await respondDoc(ctx, created), 201);
     }
     // производство создаётся своим сервисом: заказ на производство и выпуск из заказа покупателя
     if (type === 'production_order') {
       const orderId = await createProductionOrderFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id });
-      return c.json(maskFields('document', await documentDetail(ctx.db, orderId), await hiddenFieldsOf(ctx)), 201);
+      return c.json(await respondDoc(ctx, orderId), 201);
     }
     if (type === 'production') {
       const [src] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
@@ -718,13 +728,13 @@ export const documentRoutes = new Hono<AppEnv>()
         const lines = order.items.map(i => ({ orderItemId: i.id, qty: String(Math.max(0, Number(i.qty) - Number(i.produced))) })).filter(l => Number(l.qty) > 0);
         if (!lines.length) throw new AppError(422, 'nothing_to_create', 'Everything from this production order is already produced');
         const docId = await createProductionFromOrder(ctx.db, docCtx(ctx), id, { lines });
-        return c.json(maskFields('document', await documentDetail(ctx.db, docId), await hiddenFieldsOf(ctx)), 201);
+        return c.json(await respondDoc(ctx, docId), 201);
       }
       const docId = await createProductionFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id, lines: [] });
-      return c.json(maskFields('document', await documentDetail(ctx.db, docId), await hiddenFieldsOf(ctx)), 201);
+      return c.json(await respondDoc(ctx, docId), 201);
     }
     const created = await createBasedOn(ctx.db, docCtx(ctx), id, type, { shipBy });
-    return c.json(maskFields('document', await documentDetail(ctx.db, created), await hiddenFieldsOf(ctx)), 201);
+    return c.json(await respondDoc(ctx, created), 201);
   })
   // состояние документа (отдельно от проведения): переход проверяется по метаданным типа
   .post('/:id/state', write, zValidator('param', idParam, validationHook), zValidator('json', documentStateChange, validationHook), async c => {

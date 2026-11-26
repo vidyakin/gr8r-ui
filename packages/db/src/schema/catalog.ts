@@ -98,6 +98,8 @@ export const products = pgTable(
     /** Значения характеристик категории (по схеме категории с унаследованными) */
     attrs: jsonb('attrs').$type<Record<string, unknown>>().notNull().default({}),
     isActive: boolean('is_active').notNull().default(true),
+    /** Комплект (набор как в УНФ): продаётся с автосписанием составляющих без производства */
+    isKit: boolean('is_kit').notNull().default(false),
     /** Учёт по серийным номерам (задача 1099): складские документы требуют номера по количеству */
     trackSerials: boolean('track_serials').notNull().default(false),
     /** Партионный учёт (задача 1187): расходные движения списываются по партиям FEFO, у строки — срок годности */
@@ -129,6 +131,7 @@ export const products = pgTable(
     foreignKey({ columns: [t.workspaceId, t.parentProductId], foreignColumns: [t.workspaceId, t.id], name: 'products_parent_fk' }),
     foreignKey({ columns: [t.workspaceId, t.productKindId], foreignColumns: [productKinds.workspaceId, productKinds.id], name: 'products_product_kind_fk' }),
     check('products_kind_chk', sql`${t.kind} in ('goods','service','work','operation')`),
+    check('products_kit_kind_chk', sql`not ${t.isKit} or ${t.kind} = 'goods'`),
     // вариант не может быть своим родителем (вложенность вариантов проверяет сервис)
     check('products_parent_chk', sql`${t.parentProductId} is null or ${t.parentProductId} <> ${t.id}`),
     check('products_vat_chk', sql`${t.vatRate} = 'none' OR ${t.vatRate} ~ '^[0-9]+(\\.[0-9]+)?$'`),
@@ -167,5 +170,33 @@ export const productUnits = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'product_units_product_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'product_units_unit_fk' }),
     check('product_units_factor_chk', sql`${t.factor} > 0`),
+  ],
+);
+
+/** Состав комплекта (набора): составляющие товары, количество на 1 комплект и необязательная доля стоимости */
+export const productKitItems = pgTable(
+  'product_kit_items',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    kitProductId: uuid('kit_product_id').notNull(),
+    componentProductId: uuid('component_product_id').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    /** Необязательная доля/вес цены для распределения выручки комплекта */
+    priceShare: numeric('price_share', { precision: 18, scale: 4 }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('product_kit_items_ws_id_uq').on(t.workspaceId, t.id),
+    unique('product_kit_items_pair_uq').on(t.workspaceId, t.kitProductId, t.componentProductId),
+    foreignKey({ columns: [t.workspaceId, t.kitProductId], foreignColumns: [products.workspaceId, products.id], name: 'product_kit_items_kit_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.componentProductId], foreignColumns: [products.workspaceId, products.id], name: 'product_kit_items_component_fk' }),
+    check('product_kit_items_self_chk', sql`${t.kitProductId} <> ${t.componentProductId}`),
+    check('product_kit_items_qty_chk', sql`${t.qty} > 0`),
+    check('product_kit_items_share_chk', sql`${t.priceShare} is null or ${t.priceShare} >= 0`),
+    index('product_kit_items_kit_idx').on(t.workspaceId, t.kitProductId, t.sortOrder),
+    index('product_kit_items_comp_idx').on(t.workspaceId, t.componentProductId),
   ],
 );

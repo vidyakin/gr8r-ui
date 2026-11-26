@@ -535,4 +535,12 @@ export const errors = {
   invalid_url: 'Enter a valid public website URL (http or https)',
   invalid_direct_chat: 'Invalid direct chat: choose exactly one other member',
   invalid_member: 'Invalid chat member',
+  kit_goods_only: 'Only goods products can be configured as kits',
+  kit_no_tracking: 'Kit products cannot use serial or batch tracking',
+  kit_duplicate_component: 'Each component can be added to a kit only once',
+  kit_cycle: 'A kit cannot include itself directly or through nested kits',
+  kit_empty: 'The kit has no components configured',
+  kit_invalid_share: 'Price share cannot be negative',
+  kit_component_goods_only: 'Only goods products can be components of a kit',
+  kit_not_stockable: 'Kit products do not have their own stock and can only be sold or returned',
 };

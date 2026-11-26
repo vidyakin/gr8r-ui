@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { Factory, Package, Search, Wrench } from 'lucide-react';
 import type { ProductKind } from '@erp/shared';
-import { Button, Dialog, DialogContent, EmptyState, IconButton, Input, Skeleton } from '@/components/ui';
+import { Badge, Button, Dialog, DialogContent, EmptyState, IconButton, Input, Skeleton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useT, type TKey } from '@/i18n';
 import { useWsId } from '../meta/data';
@@ -20,7 +20,7 @@ import { searchItems, useSnapshot, type Item } from '../production/data';
 /* ---------------- окно подбора ---------------- */
 
 type PickProps =
-  | { mode: 'product'; onPick: (p: Product) => void; productKind?: ProductKind; price?: 'price' | 'purchasePrice'; counterpartyId?: string | null; partnerArticles?: Map<string, { article: string; name: string }> }
+  | { mode: 'product'; onPick: (p: Product) => void; productKind?: ProductKind; excludeIds?: string[]; price?: 'price' | 'purchasePrice'; counterpartyId?: string | null; partnerArticles?: Map<string, { article: string; name: string }> }
   | { mode: 'item'; onPick: (i: Item) => void };
 
 export type CatalogPickDialogProps = PickProps & {
@@ -46,12 +46,15 @@ export function CatalogPickDialog(props: CatalogPickDialogProps) {
     return () => clearTimeout(h);
   }, [q]);
   const productKind = props.mode === 'product' ? props.productKind : undefined;
+  const excludeIds = props.mode === 'product' ? props.excludeIds : undefined;
   const counterpartyId = props.mode === 'product' ? props.counterpartyId : undefined;
   const res = useQuery({
     queryKey: ['ws', ws, 'catalog', 'pick', props.mode, productKind ?? '', counterpartyId ?? '', debounced],
     queryFn: async (): Promise<Hit[]> =>
       props.mode === 'product'
-        ? (await searchProducts(ws, debounced, productKind, 20, counterpartyId)).map(p => ({ key: p.id, product: p }))
+        ? (await searchProducts(ws, debounced, productKind, 20, counterpartyId))
+            .filter(p => !excludeIds?.includes(p.id))
+            .map(p => ({ key: p.id, product: p }))
         : (await searchItems(ws, debounced, 20)).filter(i => !i.isInvalid).map(i => ({ key: i.id, item: i })),
     staleTime: 5_000,
     placeholderData: prev => prev,
@@ -140,6 +143,7 @@ export function CatalogPickDialog(props: CatalogPickDialogProps) {
                         <Package size={13} className="faint" />
                       )}
                       <span className="trunc grow" style={{ minWidth: 0 }}>{h.product.name}</span>
+                      {h.product.isKit && <Badge tone="blue">{t('catalog.kitBadge')}</Badge>}
                       {arts?.get(h.product.id)?.article && (
                         <span className="mono accent" style={{ fontSize: 11 }} title={arts.get(h.product.id)?.name || undefined}>
                           {t('docs.partner.lineArticle', { article: arts.get(h.product.id)!.article })}

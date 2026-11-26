@@ -602,6 +602,12 @@ export const docs: Widen<typeof D> = {
     groupPurchases: 'Закупки',
     groupProduction: 'Заказы на производство',
     groupStock: 'Складские документы',
+    kitBadge: 'Комплект',
+    kitComponents: 'Составляющие комплекта ({n})',
+    kitColComponent: 'Составляющая',
+    kitColQty: 'Кол-во',
+    kitColAmount: 'Сумма',
+    kitColCogs: 'Себест.',
   },
 
   /* ----------- карточка документа: табличная часть ----------- */

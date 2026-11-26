@@ -17,6 +17,7 @@ import {
   div,
   mul,
   fmt,
+  roundDiv,
   formatDocumentNumber,
   addDays,
   basedOnTargets,
@@ -48,12 +49,13 @@ import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, t
 import { recordEvent } from './events';
 import { counterpartyCodeFor, partnerArticlesFor } from './partner-articles';
 import { assertSameWarehouseTransfer, resolveWarehouseBins } from './warehouse-bins';
-import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
+import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, sourceMoveProductCosts, syncReservations, type MoveRequest } from './stock';
+import { expandKitProducts, loadDocumentKitItems, recordDocumentKitItems, sourceKitComponentsOf, type DocumentLineKitItemView, type ExpandedKitComponent } from './product-kits';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
 import { assertObjectRef } from './objects';
 import { documentBudgetWarnings } from './object-budget';
-import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, stockMoves, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
+import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLineKitItems, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, stockMoves, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -1110,8 +1112,13 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<str
   else if (!lines.length) throw new DomainError(422, 'no_lines', 'Add at least one line before posting');
   await checkLimits(db, doc, lines);
 
-  const kinds = new Map((await db.select({ id: products.id, kind: products.kind }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]))).map(p => [p.id, p.kind]));
+  const prodRows = await db.select({ id: products.id, kind: products.kind, isKit: products.isKit }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]));
+  const kinds = new Map(prodRows.map(p => [p.id, p.kind]));
+  const isKitMap = new Map(prodRows.map(p => [p.id, p.isKit]));
   const goods = lines.filter(l => kinds.get(l.productId) === 'goods');
+  const hasKits = goods.some(l => isKitMap.get(l.productId));
+  const kitAllowed = type === 'quote' || type === 'customer_order' || type === 'invoice' || type === 'act' || type === 'realization' || type === 'customer_return' || type === 'work_order';
+  if (hasKits && !kitAllowed) throw new DomainError(422, 'kit_not_stockable', 'Kit products do not have their own stock and can only be sold or returned');
   if (type === 'inventory_count') await checkInventorySerials(db, { id: doc.id, warehouseId: doc.warehouseId }, goods.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, name: l.name })));
   if (type === 'inventory_count' && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse before posting');
   // возврат из эксплуатации склад не меняет — склад ему не нужен
@@ -1131,6 +1138,15 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<str
   // лояльность (задача 1179): списание баллов уменьшает суммы строк до начисления взаиморасчётов
   if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type) && (await applyLoyaltyRedemption(db, ctx, doc))) await writeTotals(db, id);
   if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId && (await applyLoyaltyReturnRefund(db, ctx, doc, doc.basedOnId))) await writeTotals(db, id);
+
+  // комплекты товаров (задача #1183): фиксируем распределение итоговой выручки (после лояльности) и себестоимость составляющих
+  const kitStockLines = goods.filter(l => isKitMap.get(l.productId) && (type === 'realization' || type === 'customer_return' || type === 'work_order'));
+  if (kitStockLines.length) {
+    const finalLines = await linesOf(db, id);
+    const finalById = new Map(finalLines.map(l => [l.id, l]));
+    const expandedByLine = await resolveKitComponentsForLines(db, ctx.workspaceId, type, kitStockLines);
+    await recordDocumentKitItems(db, ctx.workspaceId, { id: doc.id, priceIncludesVat: doc.priceIncludesVat }, kitStockLines.map(l => finalById.get(l.id)!), expandedByLine);
+  }
 
   const num = doc.numberSeq === null ? await nextNumber(db, doc) : null;
   await db
@@ -1155,17 +1171,47 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<str
   return contractWarnings;
 }
 
+/** Разворачивает строки комплектов: при возврате на основании реализации берёт снимок исходной строки. */
+async function resolveKitComponentsForLines(db: Db, workspaceId: string, type: DocumentType, kitLines: DocumentLineRow[]): Promise<Map<string, ExpandedKitComponent[]>> {
+  const out = new Map<string, ExpandedKitComponent[]>();
+  if (!kitLines.length) return out;
+  const fromSource = type === 'customer_return'
+    ? await sourceKitComponentsOf(db, workspaceId, kitLines.map(l => l.sourceLineId).filter((x): x is string => !!x))
+    : new Map<string, ExpandedKitComponent[]>();
+  const toExpand: DocumentLineRow[] = [];
+  for (const l of kitLines) {
+    const snap = l.sourceLineId ? fromSource.get(l.sourceLineId) : undefined;
+    if (snap?.length) out.set(l.id, snap);
+    else toExpand.push(l);
+  }
+  if (toExpand.length) {
+    const expanded = await expandKitProducts(db, workspaceId, toExpand.map(l => l.productId));
+    for (const l of toExpand) out.set(l.id, expanded.get(l.productId) ?? []);
+  }
+  return out;
+}
+
 /** Движения склада по документу (общий путь): план строк → расходы и приходы. Продажи, закупки и обычное перемещение.
+    Комплекты разворачиваются в составляющие без производства и собственного остатка комплекта.
     Приход перемещения — по фактической цене расхода той же строки, поэтому товар переезжает по своей себестоимости */
 export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[]): Promise<void> {
   const type = doc.type as DocumentType;
-  const kinds = new Map((await db.select({ id: products.id, kind: products.kind }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]))).map(p => [p.id, p.kind]));
+  const prodRows = await db.select({ id: products.id, kind: products.kind, isKit: products.isKit }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]));
+  const kinds = new Map(prodRows.map(p => [p.id, p.kind]));
+  const isKitMap = new Map(prodRows.map(p => [p.id, p.isKit]));
   const goods = lines.filter(l => kinds.get(l.productId) === 'goods');
   if (!goods.length) return;
-  const plan = stockPlan({ type, warehouseId: doc.warehouseId, targetWarehouseId: doc.targetWarehouseId }, goods.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, stockRole: l.stockRole })));
-  if (!plan.length) return;
+  const regularGoods = goods.filter(l => !isKitMap.get(l.productId));
+  const kitGoods = goods.filter(l => isKitMap.get(l.productId));
+  if (kitGoods.length && type !== 'realization' && type !== 'customer_return' && type !== 'work_order') {
+    throw new DomainError(422, 'kit_not_stockable', 'Kit products do not have their own stock and can only be sold or returned');
+  }
+  const regularPlan = stockPlan({ type, warehouseId: doc.warehouseId, targetWarehouseId: doc.targetWarehouseId }, regularGoods.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, stockRole: l.stockRole })));
+  const kitPlan = stockPlan({ type, warehouseId: doc.warehouseId, targetWarehouseId: doc.targetWarehouseId }, kitGoods.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, stockRole: l.stockRole })));
+  if (!regularPlan.length && !kitPlan.length) return;
   const [org] = await db.select({ taxSystem: organizations.taxSystem }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
-  const returnCosts = type === 'customer_return' ? await sourceMoveCosts(db, goods.map(l => l.sourceLineId).filter((x): x is string => !!x)) : new Map<string, bigint>();
+  const returnCosts = type === 'customer_return' ? await sourceMoveCosts(db, regularGoods.map(l => l.sourceLineId).filter((x): x is string => !!x)) : new Map<string, bigint>();
+  const returnProductCosts = type === 'customer_return' ? await sourceMoveProductCosts(db, kitGoods.map(l => l.sourceLineId).filter((x): x is string => !!x)) : new Map<string, bigint>();
   const byLine = new Map(lines.map(l => [l.id, l]));
   // решения ОТК (задача 1186): возврат поставщику и списание на статью «брак» разрешены с карантина и для партий не в ok
   let qualityExit = type === 'supplier_return';
@@ -1173,7 +1219,7 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
     const itemIds = [...new Set([doc.costItemId, ...lines.map(l => l.costItemId)].filter((x): x is string => !!x))];
     if (itemIds.length) qualityExit = (await db.select({ id: costItems.id }).from(costItems).where(and(inArray(costItems.id, itemIds), eq(costItems.systemKey, 'brak'))).limit(1)).length > 0;
   }
-  const reqs: MoveRequest[] = plan.map(m => {
+  const reqs: MoveRequest[] = regularPlan.map(m => {
     const l = byLine.get(m.lineId)!;
     const req: MoveRequest = {
       warehouseId: m.warehouseId, productId: m.productId, lineId: m.lineId, qty: dec(m.qty), direction: m.direction,
@@ -1189,9 +1235,36 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
     if (type === 'stock_transfer' && m.direction === 'in') req.costFromLine = true; // приход по фактической цене расхода
     return req;
   });
+  if (kitPlan.length) {
+    const expandedByLine = await resolveKitComponentsForLines(db, ctx.workspaceId, type, kitGoods);
+    for (const m of kitPlan) {
+      const l = byLine.get(m.lineId)!;
+      const comps = expandedByLine.get(m.lineId) ?? [];
+      for (const c of comps) {
+        const compQty = roundDiv(dec(m.qty) * dec(c.qtyPerKit), 1_000_000n);
+        if (compQty <= 0n) throw new DomainError(422, 'invalid_qty', `"${c.name}": the quantity must be greater than zero`);
+        const req: MoveRequest = {
+          warehouseId: m.warehouseId,
+          productId: c.componentProductId,
+          lineId: m.lineId,
+          qty: compQty,
+          direction: m.direction,
+          binId: l.binId,
+          gtdNumber: l.gtdNumber,
+          originCountry: l.originCountry,
+        };
+        if (type === 'customer_return' && l.sourceLineId) {
+          const srcCost = returnProductCosts.get(`${l.sourceLineId}:${c.componentProductId}`);
+          if (srcCost !== undefined) req.cost = srcCost;
+        }
+        reqs.push(req);
+      }
+    }
+  }
+  const regularIds = new Set(regularGoods.map(l => l.id));
   await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId), {
     // партии строк (задача 1187): номер партии и даты прихода — по ним создаются партии
-    lineBatches: new Map(lines.filter(l => l.batchNumber).map(l => [l.id, { number: l.batchNumber, producedAt: l.batchProducedAt, expiresAt: l.batchExpiresAt }])),
+    lineBatches: new Map(lines.filter(l => regularIds.has(l.id) && l.batchNumber).map(l => [l.id, { number: l.batchNumber, producedAt: l.batchProducedAt, expiresAt: l.batchExpiresAt }])),
   });
 }
 
@@ -1208,6 +1281,7 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   if (!opts.repost) await DOCUMENT_HOOKS[type]?.beforeUnpost?.(db, ctx, doc);
   // отмена проведения возвращает движения склада (у внутренних документов — обе стороны перемещения)
   await revertStockMoves(db, ctx.workspaceId, id, await loadInventorySettings(db, ctx.workspaceId));
+  await db.delete(documentLineKitItems).where(and(eq(documentLineKitItems.workspaceId, ctx.workspaceId), eq(documentLineKitItems.documentId, id)));
   await db.update(documents).set({ status: 'draft', postedAt: null, postedBy: null, updatedAt: new Date() }).where(eq(documents.id, id));
   await syncAfterChange(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id), false);
   await DOCUMENT_HOOKS[doc.type as DocumentType]?.afterUnpost?.(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id));
@@ -1341,6 +1415,10 @@ export interface DocumentLineView extends DocumentLineRow {
   unitQty: string;
   sku: string;
   kind: 'goods' | 'service' | 'work' | 'operation';
+  /** Товар является комплектом (набором) */
+  isKit: boolean;
+  /** Расшифровка составляющих комплекта (для комплектов) */
+  kitItems: DocumentLineKitItemView[];
   /** Товар с учётом по серийным номерам */
   trackSerials: boolean;
   /** Товар с партионным учётом (задача 1187) */
@@ -1394,7 +1472,7 @@ export async function documentDetail(db: Db, id: string) {
     for (const { createdAt: _, ...a } of allocs) if (!children.some(c => c.id === a.id)) children.push(a);
   }
   const rows = await db
-    .select({ line: documentLines, sku: products.sku, kind: products.kind, trackSerials: products.trackSerials, trackBatches: products.trackBatches })
+    .select({ line: documentLines, sku: products.sku, kind: products.kind, isKit: products.isKit, trackSerials: products.trackSerials, trackBatches: products.trackBatches })
     .from(documentLines)
     .innerJoin(products, eq(products.id, documentLines.productId))
     .where(eq(documentLines.documentId, id))
@@ -1415,7 +1493,13 @@ export async function documentDetail(db: Db, id: string) {
   const shipped = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, true) : new Map<string, string>();
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
-  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, unitQty: unitQtyOf(r.line.qty, r.line.unitFactor), sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null, partnerArticle: '', partnerName: '' }));
+  const kitItemsByLine = await loadDocumentKitItems(
+    db,
+    doc.workspaceId,
+    doc,
+    rows.map(r => ({ id: r.line.id, productId: r.line.productId, isKit: r.isKit, qty: r.line.qty, net: r.line.net, vatAmount: r.line.vatAmount, total: r.line.total })),
+  );
+  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, unitQty: unitQtyOf(r.line.qty, r.line.unitFactor), sku: r.sku, kind: r.kind, isKit: r.isKit, kitItems: kitItemsByLine.get(r.line.id) ?? [], trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null, partnerArticle: '', partnerName: '' }));
   if (type === 'realization' && doc.status === 'posted') {
     const customs = await db.select({
       lineId: stockMoves.documentLineId,
