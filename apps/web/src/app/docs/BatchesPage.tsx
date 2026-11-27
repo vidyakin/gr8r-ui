@@ -1,9 +1,9 @@
 /* Партии и сроки годности (задача 1187): остатки партий по складам и товарам, фильтры «истекает в течение N дней» и «просрочено».
    Партия без срока (null) не попадает в истекающие. Количество — производное от движений (сумма по batch_id). */
 import * as React from 'react';
-import { CircleAlert, PackageSearch } from 'lucide-react';
+import { CircleAlert, Network, PackageSearch } from 'lucide-react';
 import type { BatchStatus } from '@erp/shared';
-import { Badge, Button, EmptyState, Skeleton, type Tone } from '@/components/ui';
+import { Badge, Button, EmptyState, IconButton, Skeleton, type Tone } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
 import { FilterBar, useFilterState } from '@/components/erp/filter-bar';
 import { useT } from '@/i18n';
@@ -12,6 +12,7 @@ import { fmtDate, parse } from '../lib/dates';
 import { call, useWsId } from '../meta/data';
 import { docsKey } from './data';
 import { BatchQualityDialog, BatchStatusBadge } from './batch-quality';
+import { BatchTraceDialog } from './batch-trace';
 import { useQuery } from '@tanstack/react-query';
 
 export interface BatchItem {
@@ -77,6 +78,7 @@ export function BatchesPage() {
   const rows = list.data?.items ?? [];
   const [open, setOpen] = React.useState<string | null>(null);
   const opened = rows.find(r => r.batchId === open) ?? null;
+  const [trace, setTrace] = React.useState<BatchItem | null>(null);
 
   const columns = React.useMemo<Column<BatchItem>[]>(
     () => [
@@ -87,6 +89,22 @@ export function BatchesPage() {
       { id: 'qty', header: t('batches.list.qty'), width: 110, value: r => Number(r.qty), cell: r => <span className="r num">{fmtNumber(r.qty)}</span> },
       { id: 'producedAt', header: t('batches.list.producedAt'), width: 120, value: r => r.producedAt ?? '', cell: r => (r.producedAt ? <span className="num muted">{fmtDate(parse(r.producedAt))}</span> : <span className="faint">—</span>) },
       { id: 'expiresAt', header: t('batches.list.expiresAt'), width: 190, value: r => r.expiresAt ?? '', cell: r => <Expiry until={r.expiresAt} /> },
+      {
+        id: 'trace',
+        header: '',
+        width: 48,
+        cell: r => (
+          <IconButton
+            label={t('batches.trace.button')}
+            onClick={e => {
+              e.stopPropagation();
+              setTrace(r);
+            }}
+          >
+            <Network size={15} />
+          </IconButton>
+        ),
+      },
     ],
     [t],
   );
@@ -132,6 +150,7 @@ export function BatchesPage() {
         <DataTable aria-label={t('batches.list.title')} columns={columns} rows={rows} table={table} getId={r => r.batchId} onRowClick={r => setOpen(r.batchId)} empty={<EmptyState icon={<PackageSearch size={20} />} title={t('batches.list.empty')} />} />
       )}
       {opened && <BatchQualityDialog batch={opened} onClose={() => setOpen(null)} />}
+      {trace && <BatchTraceDialog batch={trace} onClose={() => setTrace(null)} />}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { applySerialMoves, revertSerialEvents } from './serials';
 import { assignBatches, revertBatches, type BatchLineInput } from './batches';
 import { applyBinBalances, assertUnassignedStock, replayBinBalances, resolveWarehouseBins } from './warehouse-bins';
 import { assertNoQuarantineOut } from './quarantine';
-import { documentLines, documents, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
+import { documentLines, documents, landedCostLines, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
 
 export interface StockKey {
   warehouseId: string;
@@ -131,16 +131,19 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   /** Фактическая цена расхода по строке документа — ею оценивается приход перемещения.
       Расход порциями FEFO даёт несколько цен — берём средневзвешенную по количеству */
   const outCost = new Map<string, Dec>();
+  const outCostByProduct = new Map<string, Dec>();
   /** Сумма (цена × количество) и количество по строке — для средневзвешенной цены расхода */
   const outSum = new Map<string, Dec>();
   const outQty = new Map<string, Dec>();
+  const outProdSum = new Map<string, Dec>();
+  const outProdQty = new Map<string, Dec>();
   const advance = stockMovementAccumulator();
   const apply = (r: MoveRequest) => {
     const k = keyOf(r);
     const s = state.get(k)!;
     const trace = { binId: r.binId ?? null, gtdNumber: r.gtdNumber ?? null, originCountry: r.originCountry ?? null };
     if (r.direction === 'in') {
-      const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? outCost.get(r.lineId) : undefined) ?? s.avg;
+      const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? (outCostByProduct.get(`${r.lineId}:${r.productId}`) ?? outCost.get(r.lineId)) : undefined) ?? s.avg;
       const next = advance(s, r.qty, cost, r.lineId ? `${k}:${r.lineId}:${r.phase ?? 1}` : undefined);
       state.set(k, next.state);
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, ...trace, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
@@ -152,6 +155,9 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
       if (r.lineId) {
         outSum.set(r.lineId, (outSum.get(r.lineId) ?? 0n) + o.cost * r.qty);
         outQty.set(r.lineId, (outQty.get(r.lineId) ?? 0n) + r.qty);
+        const pk = `${r.lineId}:${r.productId}`;
+        outProdSum.set(pk, (outProdSum.get(pk) ?? 0n) + o.cost * r.qty);
+        outProdQty.set(pk, (outProdQty.get(pk) ?? 0n) + r.qty);
       }
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, ...trace, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     }
@@ -163,6 +169,7 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   }
   for (const r of reqs) if (r.direction === 'out') apply(r);
   for (const [lineId, sum] of outSum) outCost.set(lineId, sum / (outQty.get(lineId) ?? 1n));
+  for (const [pk, sum] of outProdSum) outCostByProduct.set(pk, sum / (outProdQty.get(pk) ?? 1n));
   if (!settings.allowNegativeStock) {
     const shortages = new Map<string, { key: StockKey; available: Dec; needed: Dec }>();
     for (const [k, s] of state) {
@@ -284,8 +291,10 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
 /** Пересчёт корректировок себестоимости по всей цепочке движений воркспейса (закрытие периода, этап 6).
 
     Записанная цена движения (stock_moves.cost) остаётся «базовой» — такой, какой её дало проведение. Корректировка
-    stock_cost_adjustments хранит прибавку: ownDelta — косвенные, распределённые закрытием на приход продукции, а итог
-    deltaCost = ownDelta + удорожание, пришедшее по цепочке. Проход идёт по всем движениям в порядке seq, как шло проведение:
+    stock_cost_adjustments хранит прибавку: ownDelta — своя часть (косвенные, распределённые закрытием на приход
+    продукции), а итог deltaCost = своя часть + удорожание, пришедшее по цепочке. Своих частей две: closing own_delta
+    и доли дополнительных расходов (задача 1385, `landed_cost_lines`) — они складываются в `own` этого прохода.
+    Проход идёт по всем движениям в порядке seq, как шло проведение:
     - расход списывается по средней пары (склад, товар) с учётом корректировок — разница с базовой и есть корректировка;
     - приход перемещения получает удорожание расхода той же строки (перемещение, в том числе «в пути»);
     - приход продукции выпуска — удорожание списанных на неё материалов и полуфабрикатов (с накладными % спецификации),
@@ -389,11 +398,14 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
   // Своя доля позиции — production_items.alloc_cost (материалы с накладными), на финальный этап дополнительно приходит
   // доля промежуточных этапов того же источника (НЗП): на единицу — их alloc_cost / годное количество этапа
   const allocByLine = await loadAllocationChain(db, workspaceId);
+  // дополнительные расходы (задача 1385): своя часть прихода по строкам оснований (поступления и выпуска)
+  const landedByLine = await loadLandedCostDeltas(db, workspaceId);
 
   const r4 = (a: Dec) => dec(fmt(a, 4));
   const state = new Map<string, StockState>();
   /** Удорожание единицы последнего расхода по строке документа */
   const outDelta = new Map<string, Dec>();
+  const outDeltaByProduct = new Map<string, Dec>();
   let changed = 0;
   const advance = stockMovementAccumulator();
   for (const m of moves) {
@@ -401,13 +413,17 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     const s = state.get(k) ?? { qty: 0n, avg: 0n };
     const qty = dec(m.qty);
     const base = dec(m.cost);
-    const own = dec(m.own);
+    // своя часть = доли закрытия месяца (ownDelta) + доли дополнительных расходов по строке основания
+    const own = dec(m.own) + (m.lineId ? (landedByLine.get(m.lineId) ?? 0n) : 0n);
     let delta: Dec;
     if (qty < 0n) {
       const o = advance(s, qty, 0n);
       state.set(k, o.state);
       delta = r4(o.cost) - base;
-      if (m.lineId) outDelta.set(m.lineId, delta);
+      if (m.lineId) {
+        outDelta.set(m.lineId, delta);
+        outDeltaByProduct.set(`${m.lineId}:${m.productId}`, delta);
+      }
     } else {
       let chain = 0n;
       const rel = m.type === 'production' && m.lineId ? releaseLines.get(m.lineId) : undefined;
@@ -420,14 +436,20 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
       } else if (rel && rel.qty > 0n) {
         const materials = rel.materials.reduce((sum, x) => sum + mul(outDelta.get(x.lineId) ?? 0n, x.qty), 0n);
         chain = div(materials + pctOf(materials, rel.pct), rel.qty);
-      } else if (m.lineId && outDelta.has(m.lineId)) chain = outDelta.get(m.lineId)!; // приход по цене расхода той же строки: перемещение, в том числе «в пути»
-      else if (m.type === 'customer_return' && m.lineId) chain = outDelta.get(sourceOf.get(m.lineId) ?? '') ?? 0n;
+      } else if (m.lineId && outDeltaByProduct.has(`${m.lineId}:${m.productId}`)) chain = outDeltaByProduct.get(`${m.lineId}:${m.productId}`)!;
+      else if (m.lineId && outDelta.has(m.lineId)) chain = outDelta.get(m.lineId)!; // приход по цене расхода той же строки: перемещение, в том числе «в пути»
+      else if (m.type === 'customer_return' && m.lineId) {
+        const srcLine = sourceOf.get(m.lineId);
+        chain = (srcLine ? (outDeltaByProduct.get(`${srcLine}:${m.productId}`) ?? outDelta.get(srcLine)) : undefined) ?? 0n;
+      }
       if (m.type === 'production' && m.lineId) chain += allocByLine.get(m.lineId) ?? 0n;
       delta = r4(own + chain);
       state.set(k, advance(s, qty, base + delta, m.lineId ? `${k}:${m.lineId}:${m.phase}` : undefined).state);
     }
     if (delta === dec(m.delta)) continue;
     changed++;
+    // ownDelta в строке остаётся своей частью закрытия месяца: доля доп. расходов читается из landed_cost_lines
+    // и в кэш не пишется — иначе отмена проведения доп. расходов не смогла бы её отличить от косвенных
     if (delta === 0n && own === 0n) await db.delete(stockCostAdjustments).where(and(eq(stockCostAdjustments.workspaceId, workspaceId), eq(stockCostAdjustments.moveId, m.id)));
     else if (m.hasRow) await db.update(stockCostAdjustments).set({ deltaCost: fmt(delta, 4), updatedAt: new Date() }).where(and(eq(stockCostAdjustments.workspaceId, workspaceId), eq(stockCostAdjustments.moveId, m.id)));
     else await db.insert(stockCostAdjustments).values({ workspaceId, moveId: m.id, deltaCost: fmt(delta, 4), updatedAt: new Date() });
@@ -440,9 +462,34 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
   return changed;
 }
 
+/** Прибавка к цене единицы прихода от дополнительных расходов (задача 1385): строка документа → прибавка.
+    Долю несёт документ «Дополнительные расходы»: amount / qty строки основания, четыре знака — как цена движения.
+    Читается только проведённые документы: отмена проведения возвращает прежнюю себестоимость. */
+export async function loadLandedCostDeltas(db: Db, workspaceId: string): Promise<Map<string, Dec>> {
+  const rows = await db
+    .select({ lineId: landedCostLines.baseDocumentLineId, amount: landedCostLines.amount, qty: landedCostLines.qty })
+    .from(landedCostLines)
+    .innerJoin(documents, eq(documents.id, landedCostLines.documentId))
+    .where(and(eq(landedCostLines.workspaceId, workspaceId), eq(documents.status, 'posted')));
+  const out = new Map<string, Dec>();
+  for (const r of rows) {
+    const qty = dec(r.qty);
+    if (qty <= 0n) continue;
+    out.set(r.lineId, (out.get(r.lineId) ?? 0n) + dec(fmt(div(dec(r.amount), qty), 4)));
+  }
+  return out;
+}
+
 /** Есть ли у воркспейса корректировки закрытия или распределённые материалы смены
     (тогда отмена проведения и переоценка пересчитывают цепочку целиком) */
 export async function hasCostAdjustments(db: Db, workspaceId: string): Promise<boolean> {
+  const [landed] = await db
+    .select({ id: landedCostLines.id })
+    .from(landedCostLines)
+    .innerJoin(documents, eq(documents.id, landedCostLines.documentId))
+    .where(and(eq(landedCostLines.workspaceId, workspaceId), eq(documents.status, 'posted')))
+    .limit(1);
+  if (landed) return true;
   const [row] = await db.select({ id: stockCostAdjustments.id }).from(stockCostAdjustments).where(eq(stockCostAdjustments.workspaceId, workspaceId)).limit(1);
   if (row) return true;
   const [alloc] = await db.select({ id: productionItems.id }).from(productionItems).where(and(eq(productionItems.workspaceId, workspaceId), sql`(${productionItems.allocCost} <> 0 or ${productionItems.closingCost} <> 0)`)).limit(1);
@@ -554,6 +601,31 @@ export async function sourceMoveCosts(db: Db, lineIds: string[]): Promise<Map<st
   return new Map(rows.filter(r => r.lineId).map(r => [r.lineId!, dec(r.cost)]));
 }
 
+/** Цена прихода по (строка источника, товар) — поддерживает комплекты, где у одной строки несколько составляющих */
+export async function sourceMoveProductCosts(db: Db, lineIds: string[]): Promise<Map<string, Dec>> {
+  if (!lineIds.length) return new Map();
+  const rows = await db
+    .select({ lineId: stockMoves.documentLineId, productId: stockMoves.productId, qty: stockMoves.qty, cost: effectiveCost })
+    .from(stockMoves)
+    .leftJoin(stockCostAdjustments, and(eq(stockCostAdjustments.workspaceId, stockMoves.workspaceId), eq(stockCostAdjustments.moveId, stockMoves.id)))
+    .where(inArray(stockMoves.documentLineId, lineIds));
+  const acc = new Map<string, { qty: Dec; sum: Dec }>();
+  for (const r of rows) {
+    if (!r.lineId) continue;
+    const q = dec(r.qty);
+    const absQ = q < 0n ? -q : q;
+    if (absQ <= 0n) continue;
+    const key = `${r.lineId}:${r.productId}`;
+    const cur = acc.get(key) ?? { qty: 0n, sum: 0n };
+    cur.qty += absQ;
+    cur.sum += absQ * dec(r.cost);
+    acc.set(key, cur);
+  }
+  const out = new Map<string, Dec>();
+  for (const [k, v] of acc) out.set(k, v.sum / v.qty);
+  return out;
+}
+
 /** Средняя себестоимость товаров «по организации»: средняя по складам, взвешенная остатком. Только товары с остатком и ненулевой ценой.
     Источник цены материала «средняя себестоимость склада» в расчёте производства */
 export async function loadAvgCosts(db: Db, productIds?: string[]): Promise<Map<string, string>> {
@@ -599,7 +671,7 @@ export async function syncReservations(db: Db, workspaceId: string, orderLineIds
   const ids = [...new Set(orderLineIds)];
   if (!ids.length) return;
   const lines = await db
-    .select({ id: documentLines.id, documentId: documentLines.documentId, qty: documentLines.qty, productId: documentLines.productId, status: documents.status, type: documents.type, warehouseId: documents.warehouseId, kind: products.kind })
+    .select({ id: documentLines.id, documentId: documentLines.documentId, qty: documentLines.qty, productId: documentLines.productId, status: documents.status, type: documents.type, warehouseId: documents.warehouseId, kind: products.kind, isKit: products.isKit })
     .from(documentLines)
     .innerJoin(documents, eq(documents.id, documentLines.documentId))
     .innerJoin(products, eq(products.id, documentLines.productId))
@@ -619,7 +691,7 @@ export async function syncReservations(db: Db, workspaceId: string, orderLineIds
   const leftForProduction = new Map<string, Dec>();
   for (const l of lines) {
     const reserves = DOCUMENT_META[l.type as DocumentType].reserves === true;
-    const open = reserves && l.status === 'posted' && l.kind === 'goods' ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
+    const open = reserves && l.status === 'posted' && l.kind === 'goods' && !l.isKit ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
     const want = l.warehouseId ? open : 0n;
     leftForProduction.set(l.id, open > 0n ? open : 0n);
     if (want > 0n) {

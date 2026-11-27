@@ -120,7 +120,7 @@ export const esPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
         list: [
           'Plan vs. real de salidas y de costos destacando sobrecostos y ahorros de materiales',
           'Desglose del costo de salida por partidas directas e indirectas y explosión estándar de BOM',
-          'Reportes de órdenes, movimiento de WIP, carga de talleres, defectos y margen de órdenes de trabajo',
+          'Reportes de órdenes, movimiento de WIP, carga de talleres, defectos y trazabilidad bidireccional de lotes (desde el proveedor de materia prima hasta el envío al cliente)',
         ],
         screen: 'Reportes de producción: plan vs. real de costos, salidas, WIP y defectos',
       },
@@ -191,6 +191,16 @@ export const esPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
           'Datos de origen y aduanas trasladados automáticamente a documentos de salida y formularios imprimibles',
         ],
         screen: 'Jerarquía de ubicaciones de almacén con saldos por celda y trazabilidad de origen y aduanas por lote',
+      },
+      {
+        title: 'Kits de productos y gastos adicionales al costo (Landed Cost)',
+        text: 'Vende kits y combos sin lanzar órdenes de producción: sus componentes se descuentan automáticamente del almacén. Reparte fletes, aranceles y maniobras tras la recepción recalculando el costo promedio y lo ya enviado.',
+        list: [
+          'Kits de productos: composición en el catálogo, descuento/devolución automática de componentes y reparto exacto del precio',
+          'Documento de gastos adicionales: vinculado a recepciones y salidas de producción con referencia a la factura del proveedor',
+          'Reparto por importe, cantidad, peso o manual con precisión de centavos e informe por partida de gasto',
+        ],
+        screen: 'Kits de productos en el catálogo y reparto de gastos adicionales al costo',
       },
     ],
     chain: [

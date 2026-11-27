@@ -62,6 +62,7 @@ import {
   BriefcaseBusiness,
   Landmark,
   Banknote,
+  Container,
   FileCheck2,
   FileUp,
   Wallet,
@@ -169,6 +170,7 @@ export const SECTIONS = {
   serials: { path: '/serials', name: 'Serial numbers', icon: ScanBarcode },
   batches: { path: '/batches', name: 'Batches', icon: Package },
   stockAging: { path: '/stock/aging', name: 'Stock aging', icon: Hourglass },
+  landedCosts: { path: '/landed-costs', name: 'Additional costs', icon: Container },
   salesProfit: { path: '/sales/profit', name: 'Sales P&L & ABC', icon: TrendingUp },
   repairItems: { path: '/repair-items', name: 'Items in repair', icon: Wrench },
   deliveries: { path: '/deliveries', name: 'Deliveries', icon: Truck },
@@ -190,6 +192,8 @@ export const SECTIONS = {
   // Транспорт: заявки на перевозку и тарифы (задача 1223)
   transportOrders: { path: '/transport-orders', name: 'Transport orders', icon: FileSignature },
   rateSchedules: { path: '/transport-orders/rates', name: 'Rate schedules', icon: ListChecks },
+  // Транспорт: аналитика (задача 1216)
+  transportAnalytics: { path: '/trips/analytics', name: 'Transport analytics', icon: ChartNoAxesCombined },
   // Договоры и биллинг
   objects: { path: '/objects', name: 'Objects', icon: Building2 },
   // Прогноз прибыли по объектам (задача 1275): портфель — только owner/admin, остальным сервер отвечает 403
@@ -273,7 +277,7 @@ export const NAV_GROUPS = {
   trade: {
     icon: Store,
     // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
-    items: [{ id: 'sales' }, { id: 'salesProfit' }, { id: 'purchases' }, { id: 'supplierRatings' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'stockAging' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
+    items: [{ id: 'sales' }, { id: 'salesProfit' }, { id: 'purchases' }, { id: 'supplierRatings' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'stockAging' }, { id: 'landedCosts' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
   },
   services: {
     icon: BriefcaseBusiness,
@@ -281,7 +285,7 @@ export const NAV_GROUPS = {
   },
   transport: {
     icon: Truck,
-    items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'transportOrders' }, { id: 'rateSchedules' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
+    items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'transportOrders' }, { id: 'rateSchedules' }, { id: 'transportAnalytics' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
   },
   docflow: {
     icon: Stamp,
@@ -374,6 +378,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   serials: 'stock',
   batches: 'stock',
   stockAging: 'stock',
+  landedCosts: 'stock',
   workOrders: 'services',
   repairItems: 'services',
   servicesTimesheet: 'services',
@@ -386,6 +391,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   billing: 'services',
   deliveries: 'deliveries',
   myDeliveries: 'deliveries',
+  transportAnalytics: 'transport',
   money: 'finance',
   moneyCalendar: 'finance',
   moneyRequests: 'finance',

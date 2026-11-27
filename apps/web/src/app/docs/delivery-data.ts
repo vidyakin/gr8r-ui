@@ -2,7 +2,7 @@
    Ключи кэша под ['ws', id, 'docs', 'delivery', …]: события delivery / document обновляют их вместе с журналами. */
 import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery } from '@tanstack/react-query';
-import type { DeliveryKind, DeliveryRateInput, DeliveryStatus } from '@erp/shared';
+import type { DeliveryKind, DeliveryNotificationView, DeliveryRateInput, DeliveryStatus } from '@erp/shared';
 import { API_BASE } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { docsKey } from './data';
@@ -35,6 +35,10 @@ export interface DeliveryItem {
   address: string;
   contactName: string;
   contactPhone: string;
+  contactEmail: string;
+  trackingToken: string | null;
+  trackingEnabled: boolean;
+  trackingEnabledAt: string | null;
   deliveryDate: string | null;
   windowFrom: string | null;
   windowTo: string | null;
@@ -135,6 +139,21 @@ export interface DeliveryReportData {
 export function useDeliveryReport(q: { from: string; to: string; by: string }) {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'delivery', 'report', q), queryFn: () => call<DeliveryReportData>(ws, 'GET', `/deliveries/report?from=${q.from}&to=${q.to}&by=${q.by}`), staleTime: Infinity, placeholderData: prev => prev });
+}
+
+export function deliveryTrackingUrl(token: string | null | undefined): string {
+  if (!token) return '';
+  return `${window.location.origin}/#/d/${encodeURIComponent(token)}`;
+}
+
+export function useDeliveryNotifications(deliveryId: string | undefined, enabled = true) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'delivery', 'notifications', deliveryId),
+    queryFn: async () => (await call<{ items: DeliveryNotificationView[] }>(ws, 'GET', `/deliveries/${deliveryId}/notifications`)).items,
+    enabled: !!deliveryId && enabled,
+    staleTime: Infinity,
+  });
 }
 
 /** Маршрутный лист: страница с сервера открывается в новой вкладке и сразу печатается */

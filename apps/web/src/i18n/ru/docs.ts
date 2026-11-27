@@ -602,6 +602,12 @@ export const docs: Widen<typeof D> = {
     groupPurchases: 'Закупки',
     groupProduction: 'Заказы на производство',
     groupStock: 'Складские документы',
+    kitBadge: 'Комплект',
+    kitComponents: 'Составляющие комплекта ({n})',
+    kitColComponent: 'Составляющая',
+    kitColQty: 'Кол-во',
+    kitColAmount: 'Сумма',
+    kitColCogs: 'Себест.',
   },
 
   /* ----------- карточка документа: табличная часть ----------- */
@@ -1174,6 +1180,7 @@ export const docs: Widen<typeof D> = {
     piecework_order: 'Сдельный наряд',
     service_day: 'Оказанные услуги за день',
     other_costs: 'Прочие затраты',
+    landed_cost: 'Дополнительные расходы',
     material_allocation: 'Распределение материалов',
     tolling_receipt: 'Поступление в переработку',
     tolling_report: 'Отчёт о переработке',

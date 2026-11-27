@@ -28,6 +28,16 @@ export const esPages3: Pick<Dict['modulePages'], 'logistics' | 'automations' | '
         list: ['Recordatorios de vencimientos de documentos de vehículos', 'Tarifas por tramo: por viaje, por kilómetro o por tonelada', 'Transportista contratado y gastos adicionales del viaje'],
         screen: 'Listado de flota con vencimientos de documentos',
       },
+      {
+        title: 'Analítica de transporte y seguimiento público para clientes',
+        text: 'Controla la economía del transporte por periodo y comparte un enlace público de seguimiento con franja horaria y notificaciones automáticas al cambiar el estado.',
+        list: [
+          'Analítica de transporte: costo por pedido y por km, entregas a tiempo (OTD %), utilización de vehículos y rendimiento de conductores con exportación CSV',
+          'Página pública de seguimiento con enlace seguro, estado en vivo y franja horaria sin exponer precios ni notas internas',
+          'Notificaciones automáticas al cliente por cambios de estado y franja horaria con historial de envíos',
+        ],
+        screen: 'Analítica de transporte (OTD %, costos, carga de vehículos) y seguimiento público de entrega',
+      },
     ],
     chain: [
       ['sales', 'Pedido de cliente o entrega con dirección, peso e importe.'],

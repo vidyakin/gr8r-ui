@@ -143,11 +143,15 @@ const TripsPage = lazyPage(() => import('./trips/TripsPage'), 'TripsPage');
 const DispatchPage = lazyPage(() => import('./trips/DispatchPage'), 'DispatchPage');
 const TransportOrdersPage = lazyPage(() => import('./transport-orders/TransportOrdersPage'), 'TransportOrdersPage');
 const RateSchedulesPage = lazyPage(() => import('./transport-orders/RateSchedulesPage'), 'RateSchedulesPage');
+const TransportAnalyticsPage = lazyPage(() => import('./trips/TransportAnalyticsPage'), 'TransportAnalyticsPage');
 const InventoryPage = lazyPage(() => import('./docs/InventoryPage'), 'InventoryPage');
 const InUsePage = lazyPage(() => import('./docs/InUsePage'), 'InUsePage');
 const SerialsPage = lazyPage(() => import('./docs/SerialsPage'), 'SerialsPage');
 const BatchesPage = lazyPage(() => import('./docs/BatchesPage'), 'BatchesPage');
 const StockAgingPage = lazyPage(() => import('./docs/StockAgingPage'), 'StockAgingPage');
+const LandedCostsPage = lazyPage(() => import('./docs/LandedCostsPage'), 'LandedCostsPage');
+const LandedCostDocumentPage = lazyPage(() => import('./docs/LandedCostsPage'), 'LandedCostDocumentPage');
+const LandedCostsReportPage = lazyPage(() => import('./docs/LandedCostsReportPage'), 'LandedCostsReportPage');
 const SalesProfitPage = lazyPage(() => import('./docs/SalesProfitPage'), 'SalesProfitPage');
 const RepairItemsPage = lazyPage(() => import('./docs/RepairItemsPage'), 'RepairItemsPage');
 const ProcessingPage = lazyPage(() => import('./docs/ProcessingPage'), 'ProcessingPage');
@@ -163,10 +167,11 @@ const WeighingsPage = lazyPage(() => import('./mining/WeighingsPage'), 'Weighing
 const ChatsPage = lazyPage(() => import('./chats/ChatsPage'), 'ChatsPage');
 const SupplierPortalPage = lazyPage(() => import('./portal/SupplierPortalPage'), 'SupplierPortalPage');
 const PublicChatPage = lazyPage(() => import('./chats/PublicChatPage'), 'PublicChatPage');
+const PublicDeliveryPage = lazyPage(() => import('./services/deliveries/PublicDeliveryPage'), 'PublicDeliveryPage');
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.email, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.whiteboards, SECTIONS.chats, SECTIONS.weighings, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmLeads, SECTIONS.crmCases, SECTIONS.crmAiChats, SECTIONS.crmAds, SECTIONS.crmDeals, SECTIONS.crmFunnel, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.suppliers, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.batches, SECTIONS.stockAging, SECTIONS.salesProfit, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.defectReasons, SECTIONS.sales, SECTIONS.purchases, SECTIONS.supplierRatings, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.approvals, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts, SECTIONS.deliveries, SECTIONS.myDeliveries, SECTIONS.fleet, SECTIONS.fleetVehicles, SECTIONS.fleetDrivers, SECTIONS.fleetDocuments, SECTIONS.fleetWaybills, SECTIONS.fleetFuel, SECTIONS.fleetService, SECTIONS.fleetFines, SECTIONS.trips, SECTIONS.transportOrders, SECTIONS.rateSchedules, SECTIONS.dispatch, SECTIONS.driverWorkplace, SECTIONS.objects, SECTIONS.objectsForecast, SECTIONS.shift].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.email, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.whiteboards, SECTIONS.chats, SECTIONS.weighings, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmLeads, SECTIONS.crmCases, SECTIONS.crmAiChats, SECTIONS.crmAds, SECTIONS.crmDeals, SECTIONS.crmFunnel, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.suppliers, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.batches, SECTIONS.stockAging, SECTIONS.landedCosts, SECTIONS.salesProfit, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.defectReasons, SECTIONS.sales, SECTIONS.purchases, SECTIONS.supplierRatings, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.approvals, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts, SECTIONS.deliveries, SECTIONS.myDeliveries, SECTIONS.fleet, SECTIONS.fleetVehicles, SECTIONS.fleetDrivers, SECTIONS.fleetDocuments, SECTIONS.fleetWaybills, SECTIONS.fleetFuel, SECTIONS.fleetService, SECTIONS.fleetFines, SECTIONS.trips, SECTIONS.transportOrders, SECTIONS.rateSchedules, SECTIONS.transportAnalytics, SECTIONS.dispatch, SECTIONS.driverWorkplace, SECTIONS.objects, SECTIONS.objectsForecast, SECTIONS.shift].map(s => s.path));
 
 /** Личная настройка «Открывать при запуске»: один раз за загрузку приложения корень `/` ведёт на выбранный раздел, дальше — обычная «Главная» */
 let startHandled = false;
@@ -312,6 +317,10 @@ const shellPages: RouteObject[] = [
   { path: SECTIONS.serials.path, element: <SerialsPage /> },
   { path: SECTIONS.batches.path, element: <BatchesPage /> },
   { path: SECTIONS.stockAging.path, element: <StockAgingPage /> },
+  { path: SECTIONS.landedCosts.path, element: <LandedCostsPage /> },
+  // отчёт объявлен раньше карточки: иначе «report» попал бы в :id
+  { path: `${SECTIONS.landedCosts.path}/report`, element: <LandedCostsReportPage /> },
+  { path: `${SECTIONS.landedCosts.path}/:id`, element: <LandedCostDocumentPage /> },
   { path: SECTIONS.salesProfit.path, element: <SalesProfitPage /> },
   { path: SECTIONS.repairItems.path, element: <RepairItemsPage /> },
   { path: SECTIONS.deliveries.path, element: <DeliveriesPage /> },
@@ -329,6 +338,7 @@ const shellPages: RouteObject[] = [
   { path: SECTIONS.rateSchedules.path, element: <RateSchedulesPage /> },
   { path: SECTIONS.driverWorkplace.path, element: <DriverPage /> },
   { path: SECTIONS.dispatch.path, element: <DispatchPage /> },
+  { path: SECTIONS.transportAnalytics.path, element: <TransportAnalyticsPage /> },
   // Договоры и биллинг
   { path: SECTIONS.contracts.path, element: <ContractsPage /> },
   { path: SECTIONS.approvals.path, element: <ApprovalsPage /> },
@@ -371,6 +381,8 @@ export const router = createHashRouter([
   { path: '/s/:token', element: <React.Suspense fallback={null}><SupplierPortalPage /></React.Suspense> },
   // публичный гостевой чат по ссылке: без входа
   { path: '/c/:token', element: <React.Suspense fallback={null}><PublicChatPage /></React.Suspense> },
+  // публичное отслеживание доставки клиентом по токену: без входа
+  { path: '/d/:token', element: <React.Suspense fallback={null}><PublicDeliveryPage /></React.Suspense> },
   { path: '/setup-2fa', element: <React.Suspense fallback={null}><TotpEnrollmentPage /></React.Suspense> },
   { path: '/signin', element: <SignInPage /> },
   { path: '/signup', element: <SignUpPage /> },

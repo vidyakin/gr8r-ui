@@ -12,7 +12,7 @@ import { withContext } from './context';
 import { classifyMailError, MailError, openTransport, type OutMail } from './email-transport';
 import { recordEvent } from './events';
 import { getFileStore } from './file-store';
-import { attachments, attachmentVersions, emailMessages, mailboxes } from './schema';
+import { attachments, attachmentVersions, deliveryNotifications, emailMessages, mailboxes } from './schema';
 import { readSecret } from './secrets';
 
 export interface EmailSendDeps {
@@ -99,7 +99,9 @@ export async function sendQueuedEmail(sql: Sql, workspaceId: string, emailId: st
   let retry: MailError | null = null;
   const result = await withContext(sql, { workspaceId }, async db => {
     if (!error) {
-      await db.update(emailMessages).set({ status: 'sent', sentAt: new Date(), lastError: null, updatedAt: new Date() }).where(eq(emailMessages.id, emailId));
+      const now = new Date();
+      await db.update(emailMessages).set({ status: 'sent', sentAt: now, lastError: null, updatedAt: now }).where(eq(emailMessages.id, emailId));
+      await db.update(deliveryNotifications).set({ status: 'sent', sentAt: now, error: null, updatedAt: now }).where(eq(deliveryNotifications.externalId, emailId));
       await recordEvent(db, { workspaceId, type: 'email.sent', entity: 'email', recordId: emailId, actorId: null, payload: {} });
       return 'sent' as const;
     }
@@ -117,8 +119,10 @@ export async function sendQueuedEmail(sql: Sql, workspaceId: string, emailId: st
 }
 
 async function markFailed(db: Db, workspaceId: string, emailId: string, error: string, mailboxId?: string | null, auth = false): Promise<void> {
-  await db.update(emailMessages).set({ status: 'failed', lastError: error.slice(0, 1000), updatedAt: new Date() }).where(eq(emailMessages.id, emailId));
+  const now = new Date();
+  await db.update(emailMessages).set({ status: 'failed', lastError: error.slice(0, 1000), updatedAt: now }).where(eq(emailMessages.id, emailId));
+  await db.update(deliveryNotifications).set({ status: 'failed', error: error.slice(0, 1000), updatedAt: now }).where(eq(deliveryNotifications.externalId, emailId));
   // неверный пароль — ящик помечается ошибочным, чтобы это было видно в настройках
-  if (auth && mailboxId) await db.update(mailboxes).set({ status: 'error', lastError: error.slice(0, 1000), checkedAt: new Date() }).where(eq(mailboxes.id, mailboxId));
+  if (auth && mailboxId) await db.update(mailboxes).set({ status: 'error', lastError: error.slice(0, 1000), checkedAt: now }).where(eq(mailboxes.id, mailboxId));
   await recordEvent(db, { workspaceId, type: 'email.failed', entity: 'email', recordId: emailId, actorId: null, payload: {} });
 }

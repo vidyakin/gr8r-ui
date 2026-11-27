@@ -69,6 +69,8 @@ export interface Product {
   /** Значения параметров, дающих вариант: { color: 'white' } */
   variantValues: Record<string, string>;
   isActive: boolean;
+  /** Комплект (набор как в УНФ) */
+  isKit: boolean;
   /** Учёт по серийным номерам и гарантия, мес. */
   trackSerials: boolean;
   /** Партионный учёт (задача 1187) */
@@ -154,6 +156,46 @@ export function useSaveProductUnits(productId: string) {
   return useMutation({
     mutationFn: async (items: ProductUnit[]) => (await call<{ items: ProductUnit[] }>(ws, 'PUT', `/products/${productId}/units`, { items })).items,
     onSuccess: items => qc.setQueryData(catalogKey(ws, 'product-units', productId), (old: { baseUnitCode: string; items: ProductUnit[] } | undefined) => (old ? { ...old, items } : old)),
+    onError: e => toast.error(errorMessage(e)),
+  });
+}
+
+export interface ProductKitItem {
+  id: string;
+  componentProductId: string;
+  componentName: string;
+  componentSku: string;
+  componentUnitCode: string;
+  componentPrice: string;
+  componentPurchasePrice: string;
+  componentIsKit: boolean;
+  qty: string;
+  priceShare: string | null;
+  sortOrder: number;
+}
+
+export function useProductKitItems(productId: string | null | undefined, enabled = true) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: catalogKey(ws, 'product-kit-items', productId),
+    enabled: !!productId && enabled,
+    queryFn: async () => call<{ isKit: boolean; items: ProductKitItem[] }>(ws, 'GET', `/products/${productId}/kit-items`),
+    staleTime: 60_000,
+  });
+}
+
+export function useSaveProductKitItems(productId: string) {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: { componentProductId: string; qty: string; priceShare: string | null }[]) =>
+      (await call<{ items: ProductKitItem[] }>(ws, 'PUT', `/products/${productId}/kit-items`, { items })).items,
+    onSuccess: items => {
+      qc.setQueryData(catalogKey(ws, 'product-kit-items', productId), (old: { isKit: boolean; items: ProductKitItem[] } | undefined) =>
+        old ? { ...old, items } : { isKit: true, items },
+      );
+      void qc.invalidateQueries({ queryKey: catalogKey(ws) });
+    },
     onError: e => toast.error(errorMessage(e)),
   });
 }

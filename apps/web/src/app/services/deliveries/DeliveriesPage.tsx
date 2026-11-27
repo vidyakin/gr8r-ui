@@ -2,15 +2,17 @@
    смена статуса и маршрутный лист; вкладка «Отчёт». Вкладка — в адресе (?tab=). Курьер-участник видит только свои доставки. */
 import * as React from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { CircleAlert, Printer, Truck } from 'lucide-react';
+import { Bell, CircleAlert, Copy, Printer, Truck } from 'lucide-react';
 import { DELIVERY_STATUSES } from '@erp/shared';
-import { Badge, Button, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
+import { Badge, Button, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtAmount, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../../lib/dates';
 import { useDocsApi, useCanSeeCost, typeLabel } from '../../docs/data';
 import { DELIVERY_TONE } from '../../docs/DeliveryTab';
-import { openRouteSheet, useCouriers, useDeliveries, useDeliveryMethods, type DeliveryItem } from '../../docs/delivery-data';
+import { DeliveryTrackingPanel } from '../../docs/DeliveryTrackingPanel';
+import { deliveryTrackingUrl, openRouteSheet, useCouriers, useDeliveries, useDeliveryMethods, type DeliveryItem } from '../../docs/delivery-data';
+import { useCanWrite } from '../../meta/custom-fields';
 import { useWsId } from '../../meta/data';
 import { useWorkspace } from '../../data/store';
 import { DeliveryReportTab } from './DeliveryReportTab';
@@ -47,6 +49,7 @@ function DeliveriesList() {
   const t = useT();
   const ws = useWsId();
   const api = useDocsApi();
+  const canWrite = useCanWrite();
   const seeCost = useCanSeeCost();
   const members = useWorkspace().data.members;
   const methods = useDeliveryMethods();
@@ -57,8 +60,10 @@ function DeliveriesList() {
   const [method, setMethod] = React.useState(ALL);
   const [status, setStatus] = React.useState(ALL);
   const [q, setQ] = React.useState('');
+  const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const list = useDeliveries({ from, to, courierId: courier === ALL ? undefined : courier, methodId: method === ALL ? undefined : method, status: status === ALL ? undefined : status, q: q.trim() || undefined });
   const rows = list.data?.items ?? [];
+  const selected = rows.find(r => r.id === selectedId) ?? null;
   const courierOptions = couriers.data ?? [];
 
   const columns = React.useMemo<Column<DeliveryItem>[]>(
@@ -117,8 +122,46 @@ function DeliveriesList() {
           />
         ),
       },
+      {
+        id: 'tracking',
+        header: t('delivery.tracking.title'),
+        width: 110,
+        value: r => (r.trackingEnabled ? '1' : '0'),
+        cell: r => (
+          <div className="row" style={{ gap: 4 }}>
+            <Button
+              size="sm"
+              variant="ghost"
+              title={r.trackingEnabled ? t('delivery.tracking.copy') : t('delivery.tracking.enableAndCopy')}
+              aria-label={r.trackingEnabled ? t('delivery.tracking.copy') : t('delivery.tracking.enableAndCopy')}
+              onClick={async () => {
+                let token = r.trackingEnabled ? r.trackingToken : null;
+                if (!token && canWrite) {
+                  const updated = (await api('POST', `/deliveries/${r.id}/tracking`, { enabled: true })) as DeliveryItem | null;
+                  token = updated?.trackingToken ?? null;
+                }
+                if (!token) return;
+                const url = deliveryTrackingUrl(token);
+                await navigator.clipboard.writeText(url).catch(() => {});
+                toast(t('delivery.tracking.copied'));
+              }}
+            >
+              <Copy size={13} />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title={t('delivery.tracking.details')}
+              aria-label={t('delivery.tracking.details')}
+              onClick={() => setSelectedId(r.id)}
+            >
+              <Bell size={13} />
+            </Button>
+          </div>
+        ),
+      },
     ],
-    [t, api, seeCost, members, courierOptions],
+    [t, api, canWrite, seeCost, members, courierOptions],
   );
   const table = useDataTable(columns, { sort: { id: 'day', dir: 1 } });
   const sheetCourier = courier === ALL ? null : courier;
@@ -165,6 +208,15 @@ function DeliveriesList() {
       <p className="faint" style={{ margin: '8px var(--gutter)', fontSize: 12 }}>
         <Badge tone={DELIVERY_TONE.new}>{t('delivery.status.new')}</Badge> {t('delivery.list.couriersHint')}
       </p>
+      <Dialog open={!!selected} onOpenChange={o => !o && setSelectedId(null)}>
+        <DialogContent
+          size="md"
+          title={selected ? `${typeLabel(selected.documentType as never)} ${selected.documentNumber ?? ''}` : ''}
+          description={selected ? `${selected.address}${selected.contactName ? ` · ${selected.contactName}` : ''}` : undefined}
+        >
+          {selected && <DeliveryTrackingPanel item={selected} canWrite={canWrite} />}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -18,6 +18,7 @@ import { production, productionEnums } from './production';
 import { serviceReports } from './services';
 import { serials } from './serials';
 import { batches } from './batches';
+import { landedCosts } from './landed-costs';
 import { delivery } from './delivery';
 import { repeat } from './repeat';
 import { appt } from './appt';
@@ -55,4 +56,4 @@ import { icExport } from './ic-export';
 import { icExchange } from './ic-exchange';
 import { icSync } from './ic-sync';
 
-export const es = { icLinks, icExport, icExchange, icSync, common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, cases, aiChats, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPortal, supplierPrices, shifts, agentTokens, whiteboards, chats, mining };
+export const es = { icLinks, icExport, icExchange, icSync, common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, landedCosts, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, cases, aiChats, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPortal, supplierPrices, shifts, agentTokens, whiteboards, chats, mining };

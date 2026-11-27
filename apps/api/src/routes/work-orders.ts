@@ -15,6 +15,7 @@ import {
   saveCustomerMaterials,
   saveRepairItem,
   documentDetail,
+  maskDocumentKitCosts,
   documentStates,
   documents,
   loadWorkOrderCosts,
@@ -116,7 +117,7 @@ export const workOrderRoutes = new Hono<AppEnv>()
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
-    const detail = await documentDetail(ctx.db, id);
+    const detail = maskDocumentKitCosts(await documentDetail(ctx.db, id), canSeeCost(ctx.role));
     if (detail.type !== 'work_order') throw notFound('work_order');
     const wo = await workOrderDetail(ctx.db, id);
     return c.json({ ...detail, ...wo });

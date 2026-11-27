@@ -356,7 +356,7 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
     check('documents_supplier_status_chk', sql`${t.supplierStatus} in ('pending','confirmed','shipped','declined')`),
     index('documents_supplier_portal_idx').on(t.workspaceId, t.counterpartyId, t.date.desc()).where(sql`${t.type} = 'supplier_order' and ${t.status} = 'posted'`),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','opening_stock','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement','price_setting')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','opening_stock','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement','price_setting','landed_cost')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
     check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly','disassembly','processing','from_customer','supplier_refund','from_accountable','other_income','to_supplier','customer_refund','to_accountable','other_expense','money_transfer','salary_payment')`),
@@ -727,5 +727,38 @@ export const documentExports = pgTable(
   t => [
     check('document_exports_status_chk', sql`${t.status} in ('pending','ready','failed')`),
     index('document_exports_ws_idx').on(t.workspaceId, t.createdAt),
+  ],
+);
+
+/** Распределение цены и себестоимости строки комплекта по составляющим (снимок при проведении документа) */
+export const documentLineKitItems = pgTable(
+  'document_line_kit_items',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    documentLineId: uuid('document_line_id').notNull(),
+    componentProductId: uuid('component_product_id').notNull(),
+    qtyPerKit: numeric('qty_per_kit', { precision: 18, scale: 3 }).notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    priceShare: numeric('price_share', { precision: 18, scale: 4 }),
+    unitPrice: money('unit_price').notNull().default('0'),
+    net: money('net').notNull().default('0'),
+    vatAmount: money('vat_amount').notNull().default('0'),
+    total: money('total').notNull().default('0'),
+    unitCost: numeric('unit_cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    cogs: money('cogs').notNull().default('0'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('document_line_kit_items_ws_id_uq').on(t.workspaceId, t.id),
+    unique('document_line_kit_items_line_comp_uq').on(t.workspaceId, t.documentLineId, t.componentProductId),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_line_kit_items_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'document_line_kit_items_line_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.componentProductId], foreignColumns: [products.workspaceId, products.id], name: 'document_line_kit_items_component_fk' }),
+    check('document_line_kit_items_qty_chk', sql`${t.qtyPerKit} > 0 and ${t.qty} > 0`),
+    index('document_line_kit_items_doc_idx').on(t.workspaceId, t.documentId),
+    index('document_line_kit_items_line_idx').on(t.workspaceId, t.documentLineId, t.sortOrder),
   ],
 );

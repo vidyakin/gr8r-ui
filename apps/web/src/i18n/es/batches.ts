@@ -47,4 +47,15 @@ export const batches = {
     enterIndicator: 'Indique un indicador',
     statusLabel: 'Estado de calidad del lote',
   },
+  trace: {
+    button: 'Trazabilidad',
+    title: 'Trazabilidad del lote',
+    backward: 'De qué se hizo',
+    forward: 'A dónde fue',
+    backwardHint: 'Materias primas, producciones y recepciones hasta el proveedor',
+    forwardHint: 'Producciones, traslados, envíos y pedidos de clientes',
+    empty: 'No hay lotes vinculados',
+    loadError: 'No se pudo cargar la trazabilidad',
+    kind: { batch: 'Lote', document: 'Documento', movement: 'Envío', order: 'Pedido', supplier: 'Proveedor', processing: 'Procesamiento' },
+  },
 };

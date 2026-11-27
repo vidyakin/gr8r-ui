@@ -12,6 +12,7 @@ import {
   courierScope,
   createDeliveryMethod,
   deleteDelivery,
+  deliveryNotificationsOf,
   deliveryOfDocument,
   deliveryReport,
   getDeliveryView,
@@ -21,9 +22,11 @@ import {
   myDeliveries,
   routeSheet,
   saveDelivery,
+  sendDeliveryManualNotification,
   updateDeliveryMethod,
+  updateDeliveryTracking,
 } from '@erp/db';
-import { deliveryAssign, deliveryMethodQuery, deliveryMethodSave, deliveryMethodUpdate, deliveryQuery, deliveryReportQuery, deliverySave, deliveryStatusChange, idParam, isoDate, renderRouteSheet } from '@erp/shared';
+import { deliveryAssign, deliveryMethodQuery, deliveryMethodSave, deliveryMethodUpdate, deliveryNotifySend, deliveryQuery, deliveryReportQuery, deliverySave, deliveryStatusChange, deliveryTrackingUpdate, idParam, isoDate, renderRouteSheet } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { forbidden } from '../errors';
 import { requireRole } from '../middleware';
@@ -129,4 +132,23 @@ export const deliveryRoutes = new Hono<AppEnv>()
     const { id } = c.req.valid('param');
     await addDeliveryToDocument(ctx.db, docCtx(ctx), id);
     return c.json(await getDeliveryView(ctx.db, docCtx(ctx), id));
+  })
+  .post('/:id/tracking', write, zValidator('param', idParam, validationHook), zValidator('json', deliveryTrackingUpdate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    await notCourier(ctx);
+    const { id } = c.req.valid('param');
+    await updateDeliveryTracking(ctx.db, docCtx(ctx), id, c.req.valid('json'));
+    return c.json(await getDeliveryView(ctx.db, docCtx(ctx), id));
+  })
+  .get('/:id/notifications', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id } = c.req.valid('param');
+    return c.json({ items: await deliveryNotificationsOf(ctx.db, docCtx(ctx), id) });
+  })
+  .post('/:id/notify', write, zValidator('param', idParam, validationHook), zValidator('json', deliveryNotifySend, validationHook), async c => {
+    const ctx = ctxOf(c);
+    await notCourier(ctx);
+    const { id } = c.req.valid('param');
+    const items = await sendDeliveryManualNotification(ctx.db, docCtx(ctx), id, c.req.valid('json'));
+    return c.json({ items }, 201);
   });

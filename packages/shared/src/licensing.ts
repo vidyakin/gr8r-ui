@@ -54,9 +54,9 @@ export const MODULES: readonly ModuleDef[] = [
   }),
   def({
     id: 'trade',
-    paths: ['/documents', '/stock', '/stock-levels', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/supplier-portal', '/serials', '/doc-templates', '/supplier-ratings'],
+    paths: ['/documents', '/stock', '/stock-levels', '/landed-costs', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/supplier-portal', '/serials', '/doc-templates', '/supplier-ratings'],
     hooks: ['prices'],
-    sections: ['sales', 'salesProfit', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'stockAging', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates', 'supplierRatings'],
+    sections: ['sales', 'salesProfit', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'stockAging', 'landedCosts', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates', 'supplierRatings'],
     jobs: ['document.pdf', 'document.docx', 'settlement.act_pdf'],
   }),
   def({
@@ -91,7 +91,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: ['/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/deliveries', '/delivery-methods', '/appointments', '/repair-items'],
     sections: ['workOrders', 'repairItems', 'servicesTimesheet', 'servicesPlanner', 'servicesReports', 'contracts', 'tariffPlans', 'billing', 'deliveries', 'myDeliveries', 'crmAppointments'],
     settings: ['work-orders', 'delivery-methods'],
-    jobs: ['billing.export_zip', 'contract.pdf'],
+    jobs: ['billing.export_zip', 'contract.pdf', 'delivery.notify'],
   }),
   def({
     id: 'money',
@@ -132,7 +132,7 @@ export const MODULES: readonly ModuleDef[] = [
     id: 'transport',
     requires: ['trade'],
     paths: ['/fleet', '/trips', '/transport-orders'],
-    sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines', 'trips', 'dispatch', 'driverWorkplace', 'transportOrders', 'rateSchedules'],
+    sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines', 'trips', 'dispatch', 'driverWorkplace', 'transportOrders', 'rateSchedules', 'transportAnalytics'],
     jobs: ['routing.geocode', 'routing.distribute', 'routing.optimize', 'transport.waybill_pdf'],
     nodes: ['trigger.fleet_document_expiring', 'trigger.trip_status'],
   }),

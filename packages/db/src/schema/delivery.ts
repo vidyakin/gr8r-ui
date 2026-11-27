@@ -2,8 +2,9 @@
    Таблицы арендатора (workspace_id + RLS). Одна доставка на документ; при «на основании» заказа доставка переходит
    к реализации (document_id меняется), у заказа остаётся ссылка origin_document_id. */
 import { sql } from 'drizzle-orm';
-import { check, date, foreignKey, index, jsonb, numeric, pgTable, text, time, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
+import { boolean, check, date, foreignKey, index, jsonb, numeric, pgTable, text, time, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { DELIVERY_NOTIFICATION_CHANNELS, DELIVERY_NOTIFICATION_EVENTS, DELIVERY_NOTIFICATION_STATUSES } from '@erp/shared';
+import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products } from './catalog';
 import { companies } from './crm';
 import { costItems, documentLines, documents } from './documents';
@@ -61,6 +62,10 @@ export const deliveries = pgTable(
     address: text('address').notNull().default(''),
     contactName: text('contact_name').notNull().default(''),
     contactPhone: text('contact_phone').notNull().default(''),
+    contactEmail: text('contact_email').notNull().default(''),
+    trackingToken: text('tracking_token'),
+    trackingEnabled: boolean('tracking_enabled').notNull().default(false),
+    trackingEnabledAt: ts('tracking_enabled_at'),
     deliveryDate: date('delivery_date', { mode: 'string' }),
     windowFrom: time('window_from'),
     windowTo: time('window_to'),
@@ -103,5 +108,36 @@ export const deliveries = pgTable(
     index('deliveries_date_idx').on(t.workspaceId, t.deliveryDate),
     index('deliveries_courier_idx').on(t.courierMemberId),
     index('deliveries_method_idx').on(t.methodId),
+    uniqueIndex('deliveries_tracking_token_uq').on(t.trackingToken).where(sql`${t.trackingToken} is not null`),
+  ],
+);
+
+/** Журнал уведомлений клиенту о доставке (задача 1217): email / SMS / мессенджеры */
+export const deliveryNotifications = pgTable(
+  'delivery_notifications',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    deliveryId: uuid('delivery_id').notNull(),
+    channel: text('channel', { enum: DELIVERY_NOTIFICATION_CHANNELS }).notNull(),
+    eventKind: text('event_kind', { enum: DELIVERY_NOTIFICATION_EVENTS }).notNull(),
+    recipient: text('recipient').notNull().default(''),
+    subject: text('subject').notNull().default(''),
+    message: text('message').notNull().default(''),
+    status: text('status', { enum: DELIVERY_NOTIFICATION_STATUSES }).notNull().default('queued'),
+    provider: text('provider').notNull().default(''),
+    externalId: text('external_id'),
+    error: text('error'),
+    sentAt: ts('sent_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('delivery_notifications_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.deliveryId], foreignColumns: [deliveries.workspaceId, deliveries.id], name: 'delivery_notifications_delivery_fk' }).onDelete('cascade'),
+    check('delivery_notifications_channel_chk', sql`${t.channel} in ('email','sms','telegram','whatsapp')`),
+    check('delivery_notifications_event_chk', sql`${t.eventKind} in ('tracking_enabled','window_updated','status_assigned','status_in_transit','status_delivered','status_failed')`),
+    check('delivery_notifications_status_chk', sql`${t.status} in ('queued','sent','logged','failed','skipped')`),
+    index('delivery_notifications_delivery_idx').on(t.workspaceId, t.deliveryId, t.createdAt),
   ],
 );

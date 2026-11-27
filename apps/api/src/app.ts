@@ -31,6 +31,7 @@ import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from '.
 import { productionOrderRoutes } from './routes/production-orders';
 import { productionPlanRoutes } from './routes/production-plans';
 import { stockLevelRoutes } from './routes/stock-levels';
+import { landedCostRoutes } from './routes/landed-costs';
 import { pieceworkRoutes, operationAssignmentRoutes } from './routes/piecework';
 import { productionStageRoutes } from './routes/production-stages';
 import { productionReportRoutes } from './routes/production-reports';
@@ -47,10 +48,12 @@ import { salesPlanRoutes } from './routes/sales-plan';
 import { appointmentRoutes } from './routes/appointments';
 import { repairItemRoutes, serialRoutes } from './routes/serials';
 import { batchQualityRoutes, defectReasonRoutes, reworkRoutes } from './routes/quality';
+import { traceabilityRoutes } from './routes/traceability';
 import { deliveryMethodRoutes, deliveryRoutes } from './routes/delivery';
 import { fleetRoutes } from './routes/fleet';
 import { weighingRoutes } from './routes/weighings';
 import { tripRoutes } from './routes/trips';
+import { transportAnalyticsRoutes } from './routes/transport-analytics';
 import { transportOrderRoutes } from './routes/transport-orders';
 import { positionRoutes, productKindRoutes } from './routes/positions';
 import { departmentRoutes } from './routes/departments';
@@ -85,6 +88,7 @@ import { entityRoutes } from './routes/meta';
 import { whiteboardRoutes } from './routes/whiteboards';
 import { chatRoutes } from './routes/chats';
 import { publicChatRoutes } from './routes/public-chats';
+import { publicDeliveryRoutes } from './routes/public-delivery';
 import { publicSupplierRoutes } from './routes/public-supplier';
 import { supplierPortalRoutes } from './routes/supplier-portal';
 import { mcpRoutes } from './mcp/server';
@@ -122,7 +126,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/crm', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/supplier-portal', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/departments', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/ai-chats', '/secrets', '/mailboxes', '/emails', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/integrations', '/payroll', '/pricing', '/loyalty', '/doc-templates', '/license', '/fleet', '/trips', '/transport-orders', '/attachments', '/defect-reasons', '/objects', '/supplier-ratings', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast', '/api-tokens', '/security', '/webhooks', '/project-templates', '/approval-routes', '/approvals', '/approval-tasks', '/whiteboards', '/chats', '/weighings'];
+export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/crm', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/supplier-portal', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/departments', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/ai-chats', '/secrets', '/mailboxes', '/emails', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/integrations', '/payroll', '/pricing', '/loyalty', '/doc-templates', '/license', '/fleet', '/trips', '/transport-orders', '/attachments', '/defect-reasons', '/landed-costs', '/objects', '/supplier-ratings', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast', '/api-tokens', '/security', '/webhooks', '/project-templates', '/approval-routes', '/approvals', '/approval-tasks', '/whiteboards', '/chats', '/weighings'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -211,6 +215,7 @@ function buildTenantApi() {
     .route('/documents', salesProfitRoutes)
     .route('/documents', documentRoutes)
     .route('/other-costs', otherCostsRoutes)
+    .route('/landed-costs', landedCostRoutes)
     .route('/material-allocations', materialAllocationRoutes)
     .route('/investments', investmentRoutes)
     .route('/payments', paymentRoutes)
@@ -236,6 +241,7 @@ function buildTenantApi() {
     .route('/delivery-methods', deliveryMethodRoutes)
     .route('/deliveries', deliveryRoutes)
     .route('/fleet', fleetRoutes)
+    .route('/trips', transportAnalyticsRoutes)
     .route('/trips', tripRoutes)
     .route('/transport-orders', transportOrderRoutes)
     .route('/positions', positionRoutes)
@@ -261,6 +267,7 @@ function buildTenantApi() {
     .route('/billing', billingRoutes)
     .route('/stock', stockRoutes)
     .route('/stock', batchQualityRoutes)
+    .route('/stock', traceabilityRoutes)
     .route('/flows', flowRoutes)
     .route('/flow-runs', flowRunRoutes)
     .route('/supplier-ratings', supplierRatingRoutes)
@@ -341,6 +348,7 @@ export function createApp(deps: AppDeps) {
     .route('/admin', adminRoutes)
     .route('/hooks', hookRoutes)
     .route('/public/chats', publicChatRoutes)
+    .route('/public/delivery', publicDeliveryRoutes)
     .route('/public/supplier', publicSupplierRoutes)
     .route('/mcp', mcpRoutes(() => self!))
     .route('/v1', v1Routes)

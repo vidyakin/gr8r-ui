@@ -2,8 +2,8 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, EMAIL_SEND_JOB, syncMailbox, sendQueuedEmail, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
-import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@erp/shared';
+import { BANK_SYNC_JOB, EMAIL_SEND_JOB, syncMailbox, sendQueuedEmail, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, processDeliveryNotification, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
+import { DELIVERY_NOTIFY_JOB, FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@erp/shared';
 import { IC_SYNC_JOB, registerIcChange, loadRequestForHook, markRequestHookSent } from '@erp/db';
 import { extractEstimateRegions, extractEstimateRows } from './ai/estimate-extract';
 import { llmRuntime } from './ai/llm';
@@ -110,6 +110,12 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     const mailboxId = (job.payload as { mailboxId?: unknown }).mailboxId;
     if (!isUuid(mailboxId)) throw new Error('email.sync job: payload.mailboxId must be a uuid');
     await syncMailbox(h.sql, job.workspaceId, mailboxId);
+  },
+  /** Уведомление клиенту о доставке (задача 1217): email / SMS / мессенджер с журналом */
+  [DELIVERY_NOTIFY_JOB]: async (job, h) => {
+    const notificationId = (job.payload as { notificationId?: unknown }).notificationId;
+    if (!isUuid(notificationId)) throw new Error('delivery.notify job: payload.notificationId must be a uuid');
+    await processDeliveryNotification(h.sql, job.workspaceId, notificationId, { attempts: job.attempts, maxAttempts: job.maxAttempts });
   },
   /** Заявка арендатора на модули → лид в вебхук лидов оператора. Адрес не задан — ничего не делает; не 2xx или сбой сети — ошибка, задача повторится */
   'module_request.notify': async (job, h) => {
