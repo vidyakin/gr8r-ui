@@ -8,6 +8,7 @@ export * from './catalog';
 export * from './production';
 export * from './documents';
 export * from './traceability';
+export * from './landed-costs';
 export * from './investments';
 export * from './calculations';
 export * from './billing';

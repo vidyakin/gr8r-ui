@@ -54,9 +54,9 @@ export const MODULES: readonly ModuleDef[] = [
   }),
   def({
     id: 'trade',
-    paths: ['/documents', '/stock', '/stock-levels', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/supplier-portal', '/serials', '/doc-templates', '/supplier-ratings'],
+    paths: ['/documents', '/stock', '/stock-levels', '/landed-costs', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/supplier-portal', '/serials', '/doc-templates', '/supplier-ratings'],
     hooks: ['prices'],
-    sections: ['sales', 'salesProfit', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'stockAging', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates', 'supplierRatings'],
+    sections: ['sales', 'salesProfit', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'stockAging', 'landedCosts', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates', 'supplierRatings'],
     jobs: ['document.pdf', 'document.docx', 'settlement.act_pdf'],
   }),
   def({

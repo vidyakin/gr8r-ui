@@ -8,7 +8,7 @@ export const PRINT_FORMS = COUNTRY_PRINT_FORMS;
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'opening_stock', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance', 'payroll', 'payroll_statement', 'price_setting'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'opening_stock', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance', 'payroll', 'payroll_statement', 'price_setting', 'landed_cost'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -210,6 +210,9 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   opening_balance: { label: 'Opening balances', group: 'cash', prefix: 'НО', stock: null, party: null, basedOn: [], fulfils: false, forms: ['opening_balance'], ownLines: true, section: true },
   advance_report: { label: 'Advance report', group: 'cash', prefix: 'АО', stock: null, party: null, basedOn: [], fulfils: false, forms: ['advance_report'], ownLines: true, section: true },
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: ['work_order'], fulfils: false, forms: [], ownLines: true },
+  // дополнительные расходы в себестоимость (задача 1385): своими строками распределяет сумму расходов
+  // по приходным строкам поступлений и выпусков; движений склада не делает, а меняет себестоимость приходов
+  landed_cost: { label: 'Additional costs', group: 'purchases', prefix: 'ДР', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
   material_allocation: { label: 'Material allocation', group: 'production', prefix: 'РМ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'out' },
   // переработка давальческого сырья (мы — переработчик): приём сырья заказчика, отчёт перед ним и возврат остатков
@@ -281,6 +284,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   payroll: 'Начисление зарплаты',
   payroll_statement: 'Ведомость на выплату зарплаты',
   price_setting: 'Установка цен номенклатуры',
+  landed_cost: 'Дополнительные расходы',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group && !DOCUMENT_META[t].section);

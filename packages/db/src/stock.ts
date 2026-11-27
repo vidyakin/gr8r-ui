@@ -9,7 +9,7 @@ import { applySerialMoves, revertSerialEvents } from './serials';
 import { assignBatches, revertBatches, type BatchLineInput } from './batches';
 import { applyBinBalances, assertUnassignedStock, replayBinBalances, resolveWarehouseBins } from './warehouse-bins';
 import { assertNoQuarantineOut } from './quarantine';
-import { documentLines, documents, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
+import { documentLines, documents, landedCostLines, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
 
 export interface StockKey {
   warehouseId: string;
@@ -291,8 +291,10 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
 /** Пересчёт корректировок себестоимости по всей цепочке движений воркспейса (закрытие периода, этап 6).
 
     Записанная цена движения (stock_moves.cost) остаётся «базовой» — такой, какой её дало проведение. Корректировка
-    stock_cost_adjustments хранит прибавку: ownDelta — косвенные, распределённые закрытием на приход продукции, а итог
-    deltaCost = ownDelta + удорожание, пришедшее по цепочке. Проход идёт по всем движениям в порядке seq, как шло проведение:
+    stock_cost_adjustments хранит прибавку: ownDelta — своя часть (косвенные, распределённые закрытием на приход
+    продукции), а итог deltaCost = своя часть + удорожание, пришедшее по цепочке. Своих частей две: closing own_delta
+    и доли дополнительных расходов (задача 1385, `landed_cost_lines`) — они складываются в `own` этого прохода.
+    Проход идёт по всем движениям в порядке seq, как шло проведение:
     - расход списывается по средней пары (склад, товар) с учётом корректировок — разница с базовой и есть корректировка;
     - приход перемещения получает удорожание расхода той же строки (перемещение, в том числе «в пути»);
     - приход продукции выпуска — удорожание списанных на неё материалов и полуфабрикатов (с накладными % спецификации),
@@ -396,6 +398,8 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
   // Своя доля позиции — production_items.alloc_cost (материалы с накладными), на финальный этап дополнительно приходит
   // доля промежуточных этапов того же источника (НЗП): на единицу — их alloc_cost / годное количество этапа
   const allocByLine = await loadAllocationChain(db, workspaceId);
+  // дополнительные расходы (задача 1385): своя часть прихода по строкам оснований (поступления и выпуска)
+  const landedByLine = await loadLandedCostDeltas(db, workspaceId);
 
   const r4 = (a: Dec) => dec(fmt(a, 4));
   const state = new Map<string, StockState>();
@@ -409,7 +413,8 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     const s = state.get(k) ?? { qty: 0n, avg: 0n };
     const qty = dec(m.qty);
     const base = dec(m.cost);
-    const own = dec(m.own);
+    // своя часть = доли закрытия месяца (ownDelta) + доли дополнительных расходов по строке основания
+    const own = dec(m.own) + (m.lineId ? (landedByLine.get(m.lineId) ?? 0n) : 0n);
     let delta: Dec;
     if (qty < 0n) {
       const o = advance(s, qty, 0n);
@@ -443,6 +448,8 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     }
     if (delta === dec(m.delta)) continue;
     changed++;
+    // ownDelta в строке остаётся своей частью закрытия месяца: доля доп. расходов читается из landed_cost_lines
+    // и в кэш не пишется — иначе отмена проведения доп. расходов не смогла бы её отличить от косвенных
     if (delta === 0n && own === 0n) await db.delete(stockCostAdjustments).where(and(eq(stockCostAdjustments.workspaceId, workspaceId), eq(stockCostAdjustments.moveId, m.id)));
     else if (m.hasRow) await db.update(stockCostAdjustments).set({ deltaCost: fmt(delta, 4), updatedAt: new Date() }).where(and(eq(stockCostAdjustments.workspaceId, workspaceId), eq(stockCostAdjustments.moveId, m.id)));
     else await db.insert(stockCostAdjustments).values({ workspaceId, moveId: m.id, deltaCost: fmt(delta, 4), updatedAt: new Date() });
@@ -455,9 +462,34 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
   return changed;
 }
 
+/** Прибавка к цене единицы прихода от дополнительных расходов (задача 1385): строка документа → прибавка.
+    Долю несёт документ «Дополнительные расходы»: amount / qty строки основания, четыре знака — как цена движения.
+    Читается только проведённые документы: отмена проведения возвращает прежнюю себестоимость. */
+export async function loadLandedCostDeltas(db: Db, workspaceId: string): Promise<Map<string, Dec>> {
+  const rows = await db
+    .select({ lineId: landedCostLines.baseDocumentLineId, amount: landedCostLines.amount, qty: landedCostLines.qty })
+    .from(landedCostLines)
+    .innerJoin(documents, eq(documents.id, landedCostLines.documentId))
+    .where(and(eq(landedCostLines.workspaceId, workspaceId), eq(documents.status, 'posted')));
+  const out = new Map<string, Dec>();
+  for (const r of rows) {
+    const qty = dec(r.qty);
+    if (qty <= 0n) continue;
+    out.set(r.lineId, (out.get(r.lineId) ?? 0n) + dec(fmt(div(dec(r.amount), qty), 4)));
+  }
+  return out;
+}
+
 /** Есть ли у воркспейса корректировки закрытия или распределённые материалы смены
     (тогда отмена проведения и переоценка пересчитывают цепочку целиком) */
 export async function hasCostAdjustments(db: Db, workspaceId: string): Promise<boolean> {
+  const [landed] = await db
+    .select({ id: landedCostLines.id })
+    .from(landedCostLines)
+    .innerJoin(documents, eq(documents.id, landedCostLines.documentId))
+    .where(and(eq(landedCostLines.workspaceId, workspaceId), eq(documents.status, 'posted')))
+    .limit(1);
+  if (landed) return true;
   const [row] = await db.select({ id: stockCostAdjustments.id }).from(stockCostAdjustments).where(eq(stockCostAdjustments.workspaceId, workspaceId)).limit(1);
   if (row) return true;
   const [alloc] = await db.select({ id: productionItems.id }).from(productionItems).where(and(eq(productionItems.workspaceId, workspaceId), sql`(${productionItems.allocCost} <> 0 or ${productionItems.closingCost} <> 0)`)).limit(1);

@@ -138,6 +138,9 @@ export function useRealtime(ws: string, engine: Engine, enabled = true) {
         batch.add(['ws', ws, 'objects']);
         batch.add(['ws', ws, 'estimates']);
       }
+      // Дополнительные расходы в себестоимость (задача 1385): журнал, карточка и отчёт перечитываются от документов
+      // (сам документ расходов — тоже документ, а его основание — поступление или выпуск), контрагентов и статей затрат
+      if (['document', 'company', 'cost_item', 'product', 'warehouse'].includes(e.entity)) batch.add(['ws', ws, 'landed-costs']);
       // Рейтинг поставщиков (задача 1276): считается на лету по документам, контрагентам и настройкам воркспейса
       if (['document', 'company', 'workspace'].includes(e.entity)) batch.add(['ws', ws, 'supplier-ratings']);
       // Название воркспейса, моя роль, состав участников

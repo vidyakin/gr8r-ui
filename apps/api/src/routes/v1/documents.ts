@@ -93,6 +93,7 @@ export const v1DocumentRoutes = new Hono<AppEnv>()
       body.type === 'sales_plan' ||
       body.type === 'service_day' ||
       body.type === 'price_setting' ||
+      body.type === 'landed_cost' ||
       isCashDocType(body.type)
     ) {
       throw new AppError(422, 'production_api_only', 'This document type must be created via its dedicated API');

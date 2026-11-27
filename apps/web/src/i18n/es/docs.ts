@@ -1179,6 +1179,7 @@ export const docs: Widen<typeof D> = {
     piecework_order: 'Orden a destajo',
     service_day: 'Servicios del día',
     other_costs: 'Otros costes',
+    landed_cost: 'Costes adicionales',
     material_allocation: 'Asignación de materiales',
     tolling_receipt: 'Recepción para maquila',
     tolling_report: 'Informe de maquila',

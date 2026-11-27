@@ -55,7 +55,7 @@ import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
 import { assertObjectRef } from './objects';
 import { documentBudgetWarnings } from './object-budget';
-import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLineKitItems, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, stockMoves, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
+import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLineKitItems, documentLines, documentStates, documents, investmentProjects, landedCostLines, materialAllocationItems, members, organizations, products, promoCodes, stockMoves, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -1284,6 +1284,20 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   const kids = await db.select({ id: documents.id, type: documents.type, number: documents.number }).from(documents).where(and(eq(documents.basedOnId, id), eq(documents.status, 'posted')));
   if (kids.length)
     throw new DomainError(409, 'has_posted_children', `Unpost the documents created from this one first: ${kids.map(k => k.number ?? DOCUMENT_META[k.type as DocumentType].label).join(', ')}`, { documents: kids });
+  // дополнительные расходы (задача 1385): приход нельзя снять, пока на него отнесены проведённые расходы —
+  // доли остались бы без прихода, а «на основании» их уже не пересчитать
+  const landedParents = await db
+    .select({ documentId: landedCostLines.documentId })
+    .from(landedCostLines)
+    .where(and(eq(landedCostLines.workspaceId, ctx.workspaceId), eq(landedCostLines.baseDocumentId, id)));
+  if (landedParents.length) {
+    const links = await db
+      .select({ id: documents.id, number: documents.number })
+      .from(documents)
+      .where(and(inArray(documents.id, [...new Set(landedParents.map(l => l.documentId))]), eq(documents.status, 'posted')))
+      .limit(5);
+    if (links.length) throw new DomainError(409, 'has_posted_landed_costs', `Unpost the additional costs applied to this document first: ${links.map(l => l.number ?? 'draft').join(', ')}`, { documents: links });
+  }
   // свои проверки типа документа: например, промежуточный этап нельзя снимать, если следующий уже выполнен
   if (!opts.repost) await DOCUMENT_HOOKS[type]?.beforeUnpost?.(db, ctx, doc);
   // отмена проведения возвращает движения склада (у внутренних документов — обе стороны перемещения)
@@ -1314,7 +1328,7 @@ async function syncAfterChange(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Doc
   if (ids.length) await syncReservations(db, ctx.workspaceId, ids);
   // косвенные затраты периода: набираются при проведении и очищаются при отмене.
   // У «Прочих затрат» строк товаров нет — их набирает хук проведения этого типа
-  if (doc.type === 'other_costs' || doc.type === 'sales_plan' || doc.type === 'payroll' || doc.type === 'payroll_statement' || doc.type === 'price_setting') return;
+  if (doc.type === 'other_costs' || doc.type === 'sales_plan' || doc.type === 'payroll' || doc.type === 'payroll_statement' || doc.type === 'price_setting' || doc.type === 'landed_cost') return;
   if (posted) await syncPeriodCosts(db, ctx, doc, lines);
   else await clearPeriodCosts(db, ctx.workspaceId, doc.id);
 }

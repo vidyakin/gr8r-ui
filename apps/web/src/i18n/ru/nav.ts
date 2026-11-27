@@ -70,6 +70,7 @@ export const sections: Widen<typeof S> = {
   inUse: 'В эксплуатации',
   batches: 'Партии',
   stockAging: 'Старение запасов',
+  landedCosts: 'Дополнительные расходы',
   serials: 'Серийные номера',
   repairItems: 'Изделия в ремонте',
   deliveries: 'Доставки',

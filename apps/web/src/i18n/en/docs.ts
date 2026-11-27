@@ -1179,6 +1179,7 @@ export const docs = {
     piecework_order: 'Piecework order',
     service_day: 'Services of the day',
     other_costs: 'Other costs',
+    landed_cost: 'Additional costs',
     material_allocation: 'Material allocation',
     tolling_receipt: 'Receipt for processing',
     tolling_report: 'Processing report',

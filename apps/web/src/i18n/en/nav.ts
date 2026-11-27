@@ -68,6 +68,7 @@ export const sections = {
   inUse: 'In use',
   batches: 'Batches',
   stockAging: 'Stock aging',
+  landedCosts: 'Additional costs',
   serials: 'Serial numbers',
   repairItems: 'Items in repair',
   deliveries: 'Deliveries',
