@@ -154,6 +154,7 @@ export function LandedCostDocumentPage() {
       lines: doc.data.lines.map(l => ({
         id: l.id,
         baseDocumentId: l.baseDocumentId,
+        baseDocumentLineId: l.baseDocumentLineId,
         baseDocumentNumber: l.baseDocumentNumber ?? '',
         productId: l.productId,
         productName: l.productName,

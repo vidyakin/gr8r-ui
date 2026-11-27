@@ -1,7 +1,7 @@
 /* Дополнительные расходы в себестоимость на клиенте (задача 1385): журнал, карточка с распределением,
    основания для выбора и отчёт за период. Распределение сумм по строкам считает сервер; в форме то же самое
    считает чистая функция из @erp/shared (allocateLandedCost) — предпросмотр совпадает с проводкой до копейки. */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LandedCostMethod } from '@erp/shared';
 import { t } from '@/i18n';
 import { errorMessage } from '../data/api';

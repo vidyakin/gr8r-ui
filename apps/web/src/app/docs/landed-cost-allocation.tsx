@@ -1,7 +1,6 @@
 /* Таблица распределения доп. расходов по строкам оснований (задача 1385): только отрисовка, без запросов.
    Вынесена отдельно, чтобы её можно было прогнать в тесте с данными (`landed-cost-allocation.test.tsx`):
    доли приходят готовыми (их считает allocateLandedCost), у ручного способа сумма строки редактируется. */
-import * as React from 'react';
 import { Trash2 } from 'lucide-react';
 import { IconButton, Input } from '@/components/ui';
 import { fmtAmount, fmtNumber, t } from '@/i18n';

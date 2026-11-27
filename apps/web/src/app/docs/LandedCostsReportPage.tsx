@@ -47,9 +47,9 @@ export function LandedCostsReportPage() {
       ) : (
         <>
           <div className="stats" style={{ padding: '0 16px 12px' }}>
-            <Stat label={t('landedCosts.reportPage.total')} value={money(data.total)} />
-            <Stat label={t('landedCosts.reportPage.posted')} value={money(data.postedTotal)} />
-            <Stat label={t('landedCosts.reportPage.documents')} value={String(data.documents.length)} />
+            <Stat label={t('landedCosts.reportPage.total')} value={money(data.total)} note="" />
+            <Stat label={t('landedCosts.reportPage.posted')} value={money(data.postedTotal)} note="" />
+            <Stat label={t('landedCosts.reportPage.documents')} value={String(data.documents.length)} note="" />
           </div>
           <div className="table-wrap" style={{ padding: '0 var(--gutter) 16px' }}>
             <table className="dtbl" aria-label={t('landedCosts.reportPage.documents')}>
