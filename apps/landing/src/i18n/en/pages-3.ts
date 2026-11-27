@@ -28,6 +28,16 @@ export const enPages3: Pick<Dict['modulePages'], 'logistics' | 'automations' | '
         list: ['Vehicle document expiration reminders', 'Lane tariffs: per trip, per kilometer, per ton', 'Hired carrier and additional route expenses'],
         screen: 'Fleet vehicle list with document expiration dates',
       },
+      {
+        title: 'Transport analytics and live customer tracking',
+        text: 'Monitor delivery unit economics by period and share a public tracking link with delivery time windows and automatic status notifications.',
+        list: [
+          'Transport analytics: cost per order and per km, on-time delivery rate (OTD %), vehicle utilization, and driver output with CSV export',
+          'Secure public delivery tracking page showing live status and time window without leaking internal prices or notes',
+          'Automatic client notifications on window assignment and status changes with a delivery notification log',
+        ],
+        screen: 'Transport analytics (OTD %, cost, vehicle load) and public delivery tracking page',
+      },
     ],
     chain: [
       ['sales', 'Customer order or shipment with address, weight, and amount.'],

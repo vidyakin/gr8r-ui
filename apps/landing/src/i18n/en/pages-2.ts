@@ -120,7 +120,7 @@ export const enPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
         list: [
           'Plan vs. fact output and plan vs. fact costing highlighting material overuse and savings',
           'Output cost breakdown by direct and indirect expense items plus standard BOM explosion',
-          'Reports for production orders, WIP movement, work center load, defects, and work order margins',
+          'Reports for production orders, WIP movement, work center load, defects, and bidirectional batch traceability (from raw material supplier to customer shipment)',
         ],
         screen: 'Manufacturing reports: cost plan vs. fact, output, WIP movement, and defect analysis',
       },
@@ -191,6 +191,16 @@ export const enPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
           'Origin and customs fields carried automatically onto outbound documents and printable forms',
         ],
         screen: 'Warehouse bin hierarchy with bin-level stock balances and batch origin/customs tracking',
+      },
+      {
+        title: 'Product kits (bundles) and landed cost allocation',
+        text: 'Sell product bundles without creating production runs — component items deduct from stock automatically. Post freight, customs duty, and handling after receipt and revalue both on-hand stock and already-shipped items.',
+        list: [
+          'Product kits: define components in the catalog, auto-deduct/return components on shipment, and split revenue penny-accurately',
+          'Landed Cost Voucher: attach to goods receipts and production outputs with a reference to the service vendor’s invoice',
+          'Allocate landed costs by amount, quantity, weight, or manually with an itemized landed-cost report',
+        ],
+        screen: 'Product kits in catalog and landed cost allocation across receipts',
       },
     ],
     chain: [
